@@ -1,0 +1,43 @@
+,URL blacklistu,Features (yes/no),Features,Domains count ,Description
+,https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-blocklist.txt,yes,tracker/advertising/malware,16264,Mixed
+,https://raw.githubusercontent.com/AdAway/adaway.github.io/master/hosts.txt,no,no,11000,ads
+,https://raw.githubusercontent.com/bkrcrc/turk-adlist/master/hosts,no,no,1200,ads
+,https://raw.githubusercontent.com/Yhonay/antipopads/master/hosts,o,no,754,ads
+,https://raw.githubusercontent.com/vokins/yhosts/master/hosts.txt,no,no,10000,only bad
+,https://raw.githubusercontent.com/FadeMind/hosts.extras/master/add.2o7Net/hosts,no,no,2000,ads
+,https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&mimetype=plaintext&useip=0.0.0.0,no,no,3600,ads
+,https://raw.githubusercontent.com/Dawsey21/Lists/master/adblock-list.txt,no,no,6500,ads
+,https://pgl.yoyo.org/as/serverlist.php?hostformat=hosts,no,no,3600,ads
+,https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/master/polish-pihole-filters/hostfile.txt,no,no,185,ads
+,https://raw.githubusercontent.com/azet12/KADhosts/master/KADhosts.txt,no,no,75000,ads
+,https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt,no,no,731,ads
+,https://gitlab.com/ZeroDot1/CoinBlockerLists/raw/master/list_browser.txt,no,no,3600,ads
+,https://www.github.developerdan.com/hosts/lists/ads-and-tracking-extended.txt,no,no,430000,ads
+,https://raw.githubusercontent.com/mitchellkrogza/Badd-Boyz-Hosts/master/hosts,no,no,1400,cryptomining
+,https://s3.amazonaws.com/lists.disconnect.me/simple_malvertising.txt,no,no,1400,malware
+,https://raw.githubusercontent.com/StevenBlack/hosts/master/data/StevenBlack/hosts,no,no,2300,malware
+,http://security-research.dyndns.org/pub/malware-feeds/ponmocup-infected-domains-shadowserver.csv,no,no,57,malware
+,https://urlhaus.abuse.ch/downloads/csv/,yes,"Dateadded (UTC), URL, URL status, Threat, Associated tags, Link to URLhaus entry, Reporter",2500000,malware
+,https://raw.githubusercontent.com/StevenBlack/hosts/master/data/StevenBlack/hosts,no,no,2300,mawlare
+,https://winhelp2002.mvps.org/hosts.txt,no,no,9900,malware
+,https://phishing.army/download/phishing_army_blocklist_extended.txt,no,no,1500000,phishing
+,https://dbl.oisd.nl/,no,no,1034679,only bad
+,http://benkow.cc/export.php,yes,type,12000,malware?
+,https://www.github.developerdan.com/hosts/lists/ads-and-tracking-extended.txt,no,no,429000,
+,https://github.com/anudeepND/blacklist/blob/master/adservers.txt,no,no,45000,ads
+,https://zenodo.org/record/3965397#.Y2ApBNLMJhE,no,no,90M ,DGA
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,With types,28264,
+,,,DGA,"3,500,000.00",up to 90M
+,,,ADS,"583,170.00",
+,,,MALWARE,"2,527,957.00",
+,,,Phishing,"1,500,000.00",
+,,,Only bad,"1,044,679.00",
+,,,TOTAL,"9,184,070.00",
