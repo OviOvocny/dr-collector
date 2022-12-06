@@ -1,0 +1,9 @@
+argparse
+whois
+futures
+dnspython
+requests
+urllib3
+pymongo
+python-dotenv
+pyOpenSSL
