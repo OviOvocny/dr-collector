@@ -9,13 +9,14 @@
 
 import socket
 import concurrent.futures
+import zipfile
 import dns.resolver
 import requests
 import json
 import sys
 from pymongo import MongoClient
 import pymongo
-import urllib
+import urllib.request, urllib.error, urllib.parse
 import re
 import io
 import os
@@ -32,9 +33,9 @@ from ssl_resolver import SSL
 #### resolver setup ###
 #######################
 forbiddenIps = {"0.0.0.0", "127.0.0.1", "255.255.255.255"} # nonsense IPs, feel free to add more
-nonvalidTypes = {"csv"}  
-validTxtTypes = {"plain", "octet-stream", "html"} 
-validArchTypes = {"x-gzip"}  
+nonvalidTypes = {}  
+validTxtTypes = {"plain", "octet-stream", "html", "csv"} 
+validArchTypes = {"x-gzip", "zip"}  
 ipRegEx = r"^((?:(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){6})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:::(?:(?:(?:[0-9a-fA-F]{1,4})):){5})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){4})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,1}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){3})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,2}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){2})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,3}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:[0-9a-fA-F]{1,4})):)(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,4}(?:(?:[0-9a-fA-F]{1,4})))?::)(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,5}(?:(?:[0-9a-fA-F]{1,4})))?::)(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,6}(?:(?:[0-9a-fA-F]{1,4})))?::)))))|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
 ValidHostnameRegex = r"(?:[a-z0-9](?:[a-z0-9-_]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-_]{0,61}[a-z0-9]"
 
@@ -115,16 +116,34 @@ class Data_loader:
                 file_info = retrieved[1]
 
                 ctype = file_info.get_content_subtype()
-               # print(ctype)
+                # print(ctype)
 
-                ### TODO CSV PARSING ####
                 if ctype in nonvalidTypes:
                     print("Non valid type", ctype)
                     input()
 
                 #print("Reading " + source + " " + ctype)
 
-                if ctype in validTxtTypes:
+                #unzip if needed
+                if ctype == "zip":
+                    with zipfile.ZipFile(file_tmp, 'r') as zip_ref:
+                        zip_ref.extractall("tmp")
+                    file_tmp = "tmp/" + zip_ref.namelist()[0]
+                    ctype = file_tmp.split(".")[-1]
+
+                # urlhaus csv edge case
+                if "urlhaus" in source:
+                    with open(file_tmp, 'r', encoding='utf-8', errors='ignore') as csvf:
+                        reader = csv.reader(csvf)
+                        URL_COL = 2 # url column in urlhaus csv
+                        for row in reader:
+                            if len(row) > URL_COL:
+                                domain = re.search(ValidHostnameRegex, row[URL_COL])
+                                if domain:
+                                    hostnames.append(domain.group(0))
+                                    tmp.append(hostnames)
+
+                elif ctype in validTxtTypes:
                     with io.open(file_tmp, "r", encoding="utf-8") as f:
                         for line in f:
                             # All kinds of comments are being used in the sources, they could contain non-malicious domains
@@ -137,7 +156,7 @@ class Data_loader:
                                     if domain:
                                         hostnames.append(domain.group(0))
                                         tmp.append(hostnames)
-                    os.remove(file_tmp)
+                os.remove(file_tmp)
             print("Loaded:", len(tmp), "from: ", source, 'encoded as: ', ctype)
             input()
         return hostnames
