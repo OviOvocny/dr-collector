@@ -1,4 +1,4 @@
-"""Nested typed dicts defining the shape of the data the collector expects"""
+"""Nested typed dicts defining the shape of the data the collector creates"""
 __author__ = "Adam Horák"
 
 
@@ -115,12 +115,15 @@ class IPData(TypedDict):
   """Single IP data structure used in the domain structure"""
   rdap: Optional[RDAPIPData]
   geo: Optional[GeoData]
-  rep: Optional[Dict[str, Dict]]
+  rep: Optional[Dict[str, Dict]] # reputation data, entries will have arbitrary shape
 
 class DomainData(TypedDict):
   """Single domain main data structure (goes into DB)"""
   domain_name: str
   label: str # blacklisted/benign as originally sourced, also mongo collection name
+  sourced_on: datetime # when the domain was first added
+  evaluated_on: Optional[datetime] # when the domain was last evaluated
+  # data
   dns: Optional[DNSData]
   rdap: Optional[RDAPDomainData]
   tls: Optional[TLSData]

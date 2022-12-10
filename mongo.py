@@ -48,6 +48,10 @@ class MongoWrapper:
     if len(self.batch_queue) >= self.batch_size:
       self._flush(key='domain_name')
 
+  def bulk_store(self, data: List[DomainData]):
+    """Bulk store data, no batch queue, no auto collection switching (make sure to switch_collection() first if you need to)"""
+    self._upsert(data, key='domain_name')
+
   def set_geo(self, domain_name: str, ip: str, data: GeoData):
     return self._collection.update_one({'domain_name': domain_name}, {'$set': {f'ip_data.{ip}.geo': data}})
 
