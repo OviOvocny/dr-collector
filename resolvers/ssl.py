@@ -1,7 +1,3 @@
-
-
-#!/usr/bin/env python3
-
 """SSL.py: First version of SSL loader for SSL model"""
 __author__      = "Jan Polisensky"
 
@@ -11,22 +7,16 @@ from xml import dom
 import socket
 import concurrent.futures
 
-import OpenSSL
+import OpenSSL.SSL
 import datetime
 
-
+from config import Config
 
 
 class SSL:
-
     def __init__(self) -> None:
-        """
-        ! Constructor of the SSL resolver
-        """
-
-        super().__init__()
         self.name = "ssl"
-        self.timeout = 10 # Default timeout
+        self.timeout = Config.TIMEOUT # Default timeout
         self.status = None
         self.output = {
             "resolver_name" : self.name,
@@ -75,7 +65,7 @@ class SSL:
             sock.do_handshake()
             cipher_name = sock.get_cipher_name()
             cert_chain = sock.get_verified_chain()
-            chain_len = len(cert_chain)
+            chain_len = len(cert_chain) if cert_chain else 0
             version = sock.get_protocol_version_name()
            
 
@@ -200,7 +190,7 @@ class SSL:
         return features
     
 
-    def resolve(self, domain_name, ip_list=[], timeout=10):
+    def resolve(self, domain_name, ip_list=[], timeout=Config.TIMEOUT):
         self.timeout = timeout
 
         if type(domain_name) is not str:

@@ -1,6 +1,8 @@
-from ssl_resolver import SSL
+from dotenv import load_dotenv
+load_dotenv()
+from pprint import pprint
 
-test = SSL()
+from resolvers.ssl import SSL
 
-
-print(test.resolve("google.com"))
+ssl = SSL()
+pprint(ssl.resolve('google.com'))

@@ -23,7 +23,7 @@ import os
 import time
 import csv
 import whois
-from ssl_resolver import SSL
+from resolvers.ssl import SSL
 
 # Import custom modules
 

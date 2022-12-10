@@ -1,9 +1,10 @@
 argparse
-whois
+whoisit
 futures
 dnspython
 requests
 urllib3
 pymongo
+ssh-pymongo
 python-dotenv
 pyOpenSSL
