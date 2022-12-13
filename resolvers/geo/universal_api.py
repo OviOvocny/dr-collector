@@ -16,8 +16,6 @@ def default_mapper(data: dict) -> GeoData:
   asn = int(asys.split(" ")[0][2:]) if asys else None
   as_org = asys.split(" ", 1)[1] if asys else None
   return {
-    "status": "success",
-    "message": None,
     "country": data.get("country", None),
     "country_code": data.get("countryCode", None),
     "region": data.get("regionName", None),

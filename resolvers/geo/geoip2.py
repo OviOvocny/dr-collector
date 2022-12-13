@@ -8,8 +8,6 @@ def default_mapper(data: geoip2.models.City) -> GeoData:
   Takes the reader result and maps the fields to a GeoData object
   """
   return {
-    "status": "success",
-    "message": None,
     "country": data.country.name,
     "country_code": data.country.iso_code,
     "region": data.subdivisions.most_specific.name,

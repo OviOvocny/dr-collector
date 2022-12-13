@@ -20,8 +20,6 @@ class DNSData(TypedDict):
 # Geo
 class GeoData(TypedDict):
   """Geolocation data structure"""
-  status: Optional[str]
-  message: Optional[str]
   country: Optional[str]
   country_code: Optional[str]
   region: Optional[str]
