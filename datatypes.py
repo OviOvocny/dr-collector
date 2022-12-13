@@ -20,21 +20,21 @@ class DNSData(TypedDict):
 # Geo
 class GeoData(TypedDict):
   """Geolocation data structure"""
-  status: str
-  message: str
-  country: str
-  country_code: str
-  region: str
-  region_code: str
-  city: str
-  postal_code: str
-  latitude: float
-  longitude: float
-  timezone: str
-  asn: int
-  as_org: str
-  isp: str
-  org: str
+  status: Optional[str]
+  message: Optional[str]
+  country: Optional[str]
+  country_code: Optional[str]
+  region: Optional[str]
+  region_code: Optional[str]
+  city: Optional[str]
+  postal_code: Optional[str]
+  latitude: Optional[float]
+  longitude: Optional[float]
+  timezone: Optional[str]
+  asn: Optional[int]
+  as_org: Optional[str]
+  isp: Optional[str]
+  org: Optional[str]
 
 #RDAP
 class RDAPEntity(TypedDict):

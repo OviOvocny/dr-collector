@@ -128,3 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 data/rdap_bootstrap.json
+data/geolite/COPYRIGHT.txt
+data/geolite/GeoLite2-City.mmdb
+data/geolite/LICENSE.txt
+data/geolite/README.txt

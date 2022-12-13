@@ -13,24 +13,24 @@ def default_mapper(data: dict) -> GeoData:
   Takes the API response and maps the fields to a GeoData object
   """
   asys: Union[str,None] = data.get("as", None)
-  asn = int(asys.split(" ")[0][2:]) if asys else 0
-  as_org = asys.split(" ", 1)[1] if asys else ""
+  asn = int(asys.split(" ")[0][2:]) if asys else None
+  as_org = asys.split(" ", 1)[1] if asys else None
   return {
     "status": "success",
-    "message": "",
-    "country": data.get("country", ""),
-    "country_code": data.get("countryCode", ""),
-    "region": data.get("regionName", ""),
-    "region_code": data.get("region", ""),
-    "city": data.get("city", ""),
-    "postal_code": data.get("zip", ""),
+    "message": None,
+    "country": data.get("country", None),
+    "country_code": data.get("countryCode", None),
+    "region": data.get("regionName", None),
+    "region_code": data.get("region", None),
+    "city": data.get("city", None),
+    "postal_code": data.get("zip", None),
     "latitude": data.get("lat", 0),
     "longitude": data.get("lon", 0),
-    "timezone": data.get("timezone", ""),
+    "timezone": data.get("timezone", None),
     "asn": asn,
     "as_org": as_org,
-    "isp": data.get("isp", ""),
-    "org": data.get("org", "")
+    "isp": data.get("isp", None),
+    "org": data.get("org", None)
   }
 
 def default_request_constructor(url: str, ips: List[str], ips_per_request = 1) -> Tuple[requests.Request, List[str]]:

@@ -5,6 +5,6 @@ dnspython
 requests
 urllib3
 pymongo
-ssh-pymongo
+geoip2
 python-dotenv
 pyOpenSSL
