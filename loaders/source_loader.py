@@ -12,31 +12,25 @@ import urllib.request, urllib.error
 import zipfile
 from typing import List
 from logger import logger
+from utils import LoaderUtils as U
 
 class SourceLoader:
-  """Local file data loader for the collector"""
+  """Remote data loader for the collector"""
   valid_sources = ("plain", "octet-stream", "html", "csv", "zip")
-  comment_prefixes = ("#", ";", "//")
-  ip_regex = r"^((?:(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){6})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:::(?:(?:(?:[0-9a-fA-F]{1,4})):){5})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){4})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,1}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){3})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,2}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){2})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,3}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:[0-9a-fA-F]{1,4})):)(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,4}(?:(?:[0-9a-fA-F]{1,4})))?::)(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,5}(?:(?:[0-9a-fA-F]{1,4})))?::)(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,6}(?:(?:[0-9a-fA-F]{1,4})))?::)))))|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
-  hostname_regex = r"(?:[a-z0-9](?:[a-z0-9-_]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-_]{0,61}[a-z0-9]"
 
   def __init__(self, tmp_dir = "tmp"):
     self.tmp_dir = tmp_dir
     self.sources: List[str] = []
-
-  def _filter_non_links(self):
-    """Filters out any sources that don't contain a match for the hostname regex"""
-    self.sources = [source for source in self.sources if re.search(self.hostname_regex, source)]
 
   def source_plain(self, filename: str):
     """Reads the file as plain text and looks for non-empty lines that are not comments"""
     with open(filename, "r") as f:
       for line in f:
         line = line.strip()
-        if line.startswith(self.comment_prefixes) or len(line) == 0:
+        if line.startswith(U.comment_prefixes) or len(line) == 0:
           continue
         self.sources.append(line)
-    self._filter_non_links()
+    self.sources = U.filter_non_links(self.sources)
 
   def source_csv(self, filename: str, column: int = 0, delimiter: str = ","):
     """Reads the file as CSV and looks for the specified column"""
@@ -45,7 +39,7 @@ class SourceLoader:
       for row in reader:
         if len(row) > column:
           self.sources.append(row[column])
-    self._filter_non_links()
+    self.sources = U.filter_non_links(self.sources)
 
   def source_json(self, filename: str, object_key: str, collection_key = None):
     """
@@ -64,7 +58,7 @@ class SourceLoader:
         for obj in data:
           if object_key in obj:
             self.sources.append(obj[object_key])
-    self._filter_non_links()
+    self.sources = U.filter_non_links(self.sources)
 
   def load(self):
     """A generator that, for each source, downloads the contents and yields the domains found"""
@@ -103,7 +97,7 @@ class SourceLoader:
       URL_COL = 2 # url column in urlhaus csv
       for row in reader:
         if len(row) > URL_COL:
-          domain = re.search(self.hostname_regex, row[URL_COL])
+          domain = re.search(U.hostname_regex, row[URL_COL])
           if domain:
             domain_names.append(domain.group(0))
     return domain_names
@@ -113,9 +107,9 @@ class SourceLoader:
     with open(file, "r", encoding='utf-8', errors='ignore') as f:
       for line in f:
         line = line.strip()
-        if line.startswith(self.comment_prefixes) or len(line) == 0:
+        if line.startswith(U.comment_prefixes) or len(line) == 0:
           continue
-        domain = re.search(self.hostname_regex, line)
+        domain = re.search(U.hostname_regex, line)
         if domain:
           domain_names.append(domain.group(0))
     return domain_names
