@@ -9,13 +9,13 @@ from datetime import datetime, timedelta
 # DNS
 class DNSData(TypedDict):
   """DNS data structure"""
-  A: list[str]
-  AAAA: list[str]
-  CNAME: list[str]
-  MX: list[str]
-  NS: list[str]
-  SOA: list[str]
-  TXT: list[str]
+  A: List[str]
+  AAAA: List[str]
+  CNAME: List[str]
+  MX: List[str]
+  NS: List[str]
+  SOA: List[str]
+  TXT: List[str]
 
 # Geo
 class GeoData(TypedDict):
