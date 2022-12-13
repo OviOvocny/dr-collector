@@ -12,7 +12,7 @@ import urllib.request, urllib.error
 import zipfile
 from typing import List
 from logger import logger
-from utils import LoaderUtils as U
+from loaders.utils import LoaderUtils as U
 
 class SourceLoader:
   """Remote data loader for the collector"""
@@ -59,6 +59,9 @@ class SourceLoader:
           if object_key in obj:
             self.sources.append(obj[object_key])
     self.sources = U.filter_non_links(self.sources)
+
+  def source_count(self):
+    return len(self.sources)
 
   def load(self):
     """A generator that, for each source, downloads the contents and yields the domains found"""

@@ -126,3 +126,16 @@ class DomainData(TypedDict):
   rdap: Optional[RDAPDomainData]
   tls: Optional[TLSData]
   ip_data: Optional[Dict[str, IPData]]
+
+def empty_domain_data(domain_name: str, label: str) -> DomainData:
+  """Returns an empty DomainData structure"""
+  return {
+    'domain_name': domain_name,
+    'label': label,
+    'sourced_on': datetime.now(),
+    'evaluated_on': None,
+    'dns': None,
+    'rdap': None,
+    'tls': None,
+    'ip_data': None
+  }

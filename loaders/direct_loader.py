@@ -7,7 +7,7 @@ __author__ = "Adam Horák"
 import re
 from typing import List
 from logger import logger
-from utils import LoaderUtils as U
+from loaders.utils import LoaderUtils as U
 
 class DirectLoader:
   """Local file data loader for the collector"""
