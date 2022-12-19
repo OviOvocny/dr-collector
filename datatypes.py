@@ -2,9 +2,8 @@
 __author__ = "Adam Horák"
 
 
-from ipaddress import IPv4Network, IPv6Network
 from typing import Union, List, Dict, TypedDict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # DNS
 class DNSData(TypedDict):
@@ -35,7 +34,7 @@ class GeoData(TypedDict):
   org: Optional[str]
 
 #RDAP
-class RDAPEntity(TypedDict):
+class RDAPEntity(TypedDict, total=False):
   """RDAP entity structure (used in the entities list, not a specific query result)"""
   email: str
   handle: str
@@ -67,12 +66,20 @@ class RDAPDomainData(RDAPBaseData):
   nameservers: List[str]
   status: List[str]
 
+class IPNetwork(TypedDict):
+  """IP network structure"""
+  prefix_length: int
+  network_address: str
+  netmask: str
+  broadcast_address: str
+  hostmask: str
+
 class RDAPIPData(RDAPBaseData):
   """RDAP IP data structure"""
   country: str
   ip_version: int
   assignment_type: str
-  network: Union[IPv4Network, IPv6Network]
+  network: IPNetwork
 
 class RDAPASNData(RDAPBaseData):
   """RDAP ASN data structure"""
@@ -95,7 +102,7 @@ class Certificate(TypedDict):
   country: Optional[str]
   is_root: bool
   organization: Optional[str]
-  valid_len: Optional[timedelta]
+  valid_len: Optional[int]
   validity_end: Optional[datetime]
   validity_start: Optional[datetime]
   extension_count: int
@@ -111,9 +118,12 @@ class TLSData(TypedDict):
 # DB data record
 class IPData(TypedDict):
   """Single IP data structure used in the domain structure"""
+  ip: str
   rdap: Optional[RDAPIPData]
   geo: Optional[GeoData]
+  geo_evaluated_on: Optional[datetime]
   rep: Optional[Dict[str, Dict]] # reputation data, entries will have arbitrary shape
+  rep_evaluated_on: Optional[datetime]
 
 class DomainData(TypedDict):
   """Single domain main data structure (goes into DB)"""
@@ -124,8 +134,10 @@ class DomainData(TypedDict):
   # data
   dns: Optional[DNSData]
   rdap: Optional[RDAPDomainData]
+  rdap_evaluated_on: Optional[datetime]
   tls: Optional[TLSData]
-  ip_data: Optional[Dict[str, IPData]]
+  tls_evaluated_on: Optional[datetime]
+  ip_data: Optional[List[IPData]]
 
 def empty_domain_data(domain_name: str, label: str) -> DomainData:
   """Returns an empty DomainData structure"""
@@ -136,6 +148,8 @@ def empty_domain_data(domain_name: str, label: str) -> DomainData:
     'evaluated_on': None,
     'dns': None,
     'rdap': None,
+    'rdap_evaluated_on': None,
     'tls': None,
+    'tls_evaluated_on': None,
     'ip_data': None
   }

@@ -1,12 +1,22 @@
 """Mongo wrapper that handles dataset storage"""
 __author__ = "Adam Horák"
 
+import sys
 import pymongo
 import atexit
+import concurrent.futures
+from math import ceil
 from typing import List
 from config import Config
 from datatypes import DomainData, GeoData
 from logger import logger
+
+def chunks(l: List, n: int):
+  """Yield successive equal about-n-sized chunks from l."""
+  chunk_count = len(l) // n
+  chunk_size = ceil(len(l) / chunk_count)
+  for i in range(0, len(l), chunk_size):
+    yield l[i:i + chunk_size]
 
 class MongoWrapper:
   batch_queue = []
@@ -29,9 +39,9 @@ class MongoWrapper:
 
   def _upsert(self, data: List, key: str):
     updates = [pymongo.UpdateOne({key: d[key]}, {'$set': d}, upsert=True) for d in data]
-    return self._collection.bulk_write(updates)
+    return self._collection.bulk_write(updates, ordered=False)
 
-  def _upsert_one(self, data: dict, key: str = 'domain_name'):
+  def _upsert_one(self, data: dict, key: str):
     return self._collection.update_one({key: data[key]}, {'$set': data}, upsert=True)
 
   def _flush(self, key: str):
@@ -56,11 +66,28 @@ class MongoWrapper:
     self.batch_queue.append(data)
     # flush if batch queue is full
     if len(self.batch_queue) >= self.batch_size:
+      logger.debug("DB: Batch queue full, flushing " + str(len(self.batch_queue)) + " items")
       self._flush(key='domain_name')
 
   def bulk_store(self, data: List[DomainData]):
     """Bulk store data, no batch queue, no auto collection switching (make sure to switch_collection() first if you need to)"""
     self._upsert(data, key='domain_name')
+
+  def parallel_store(self, data: List[DomainData]):
+    """Store data in parallel, no batch queue, no auto collection switching (make sure to switch_collection() first if you need to)"""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
+      print(f'Preparing {len(data)} items...', end='\r')
+      futures = [executor.submit(self._upsert, chunk, 'domain_name') for chunk in chunks(data, Config.MONGO_BATCH_SIZE)]
+      print(f'Sending {len(data)} items...  ', end='\r')
+      complete = 0
+      stored = 0
+      for future in concurrent.futures.as_completed(futures):
+        complete += 1
+        stored += future.result().upserted_count
+        print(str(stored) + ' items [' + '#' * complete + ' ' * (len(futures) - complete) + ']', end='\r')
+      sys.stdout.write("\033[K")
+      print(f'Stored {stored} of {len(data)} items in {len(futures)} writes')
+    return stored, len(futures)
 
   def set_by_path(self, domain_name: str, path: str, data):
     return self._collection.update_one({'domain_name': domain_name}, {'$set': {path: data}})
@@ -76,9 +103,17 @@ class MongoWrapper:
     else:
       return [d for d in self._collection.find({})]
 
-  def get_unresolved(self):
-    # find records where at least one of the optional fields in DomainData is None
-    return [d for d in self._collection.find({'$or': [{'rdap': None}, {'ip_data': None}, {'tls': None}, {'dns': None}]})]
+  def get_unresolved(self, retry_evaluated = False, limit: int = 0):
+    # find records where at least one of the optional fields in DomainData is None, limit to limit
+    if retry_evaluated:
+      return [d for d in self._collection.find({'$or': [{'rdap': None}, {'ip_data': None}, {'tls': None}, {'dns': None}]}, limit=limit)]
+    return [d for d in self._collection.find({'$or': [{'rdap_evaluated_on': None}, {'ip_data': None}, {'tls_evaluated_on': None}, {'dns': None}]}, limit=limit)]
+
+  def get_unresolved_geo(self, retry_evaluated = False, limit: int = 0):
+    # find records where at least one of the dicts in ip_data has no geo_evaluated key, limit to limit
+    if retry_evaluated:
+      return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'geo': None}}}, limit=limit)]
+    return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'geo_evaluated_on': None}}}, limit=limit)]
 
   def get_resolved(self):
     # find records where all of the optional fields in DomainData are not None
