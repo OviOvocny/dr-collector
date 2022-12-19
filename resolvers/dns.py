@@ -1,6 +1,7 @@
 """Self-contained DNS resolver for the collector"""
 __author__ = "Adam Horák"
 
+from typing import Tuple, List, Union
 import dns.resolver
 from config import Config
 from datatypes import DNSData
@@ -11,7 +12,7 @@ class DNS:
     self._dns.nameservers = Config.DNS_SERVERS
 
   # query domain for all record types in record_types
-  def query(self, domain: str, record_types = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'SOA', 'TXT']):
+  def query(self, domain: str, record_types = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'SOA', 'TXT']) -> Tuple[DNSData, Union[List[str], None]]:
     records = {}
     for record_type in record_types:
       try:
