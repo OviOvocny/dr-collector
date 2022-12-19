@@ -1,5 +1,6 @@
 argparse
 whoisit
+whois
 futures
 dnspython
 requests
@@ -8,3 +9,4 @@ pymongo
 geoip2
 python-dotenv
 pyOpenSSL
+click
