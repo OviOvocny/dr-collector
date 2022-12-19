@@ -20,7 +20,7 @@ geo = GeoIP2()
 
 @click.group()
 def cli():
-  pass
+  MongoWrapper.test_connection()
 
 
 @cli.command('load', help='Load sources from file, download and store in db')
