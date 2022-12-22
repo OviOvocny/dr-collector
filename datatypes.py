@@ -117,7 +117,7 @@ class TLSData(TypedDict):
 
 class IPRemarks(TypedDict):
   """Remarks for finding unfinished IPs"""
-  # dates of last SUCCESSFUL evaluation
+  # dates of last FINISHED evaluation (either OK or not worth retrying)
   rdap_evaluated_on: Optional[datetime]
   geo_evaluated_on: Optional[datetime]
   rep_evaluated_on: Optional[datetime]
@@ -133,7 +133,7 @@ class IPData(TypedDict):
 
 class DomainRemarks(TypedDict):
   """Remarks for finding unfinished domains"""
-  # dates of last SUCCESSFUL evaluation
+  # dates of last FINISHED evaluation (either OK or not worth retrying)
   dns_evaluated_on: Optional[datetime]
   rdap_evaluated_on: Optional[datetime]
   tls_evaluated_on: Optional[datetime]

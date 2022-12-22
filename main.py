@@ -1,16 +1,17 @@
-from math import ceil
 import click
+from click._termui_impl import ProgressBar
+import time
+import threading
 import concurrent.futures
-from datetime import datetime
+from math import ceil
 from config import Config
 from mongo import MongoWrapper
-from datatypes import empty_domain_data, empty_ip_data, DomainData, IPData
+from datatypes import empty_domain_data
 from logger import logger
-from whois.exceptions import WhoisQuotaExceeded
 from exceptions import *
 
 from loaders import SourceLoader, DirectLoader
-from resolvers import DNS, RDAP, TLS, GeoIP2, NERD
+from resolvers import resolve_domain
 
 
 @click.group()
@@ -47,14 +48,20 @@ def load(file, label, direct):
   total_sourced = 0
   total_stored = 0
   total_writes = 0
-  for domain_list in loader.load():
-    total_sourced += len(domain_list)
-    stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list])
-    total_stored += stored
-    total_writes += writes
-  result = f'Added {total_stored} domains in {total_writes} s, skipped {total_sourced - total_stored} duplicates.'
-  click.echo(f'Finished: {result}')
-  logger.info(result)
+  try:
+    for domain_list in loader.load():
+      total_sourced += len(domain_list)
+      stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list])
+      total_stored += stored
+      total_writes += writes
+    result = f'Added {total_stored} domains in {total_writes} s, skipped {total_sourced - total_stored} duplicates.'
+    click.echo(f'Finished: {result}')
+    logger.info(result)
+  except ValueError as e:
+    if 'unknown url type' in str(e):
+      click.echo('Can\'t download. File is probably a domain list. Try again with --direct or -d.', err=True)
+    else:
+      click.echo(str(e), err=True)
 
 
 @cli.command('resolve', help='Resolve domains stored in db')
@@ -102,115 +109,26 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
   else:
     with click.progressbar(length=len(unresolved), show_pos=True, show_percent=True) as resolving:
       with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
+        terminator_thread = threading.Thread(target=terminator, args=(executor, resolving))
         futures = [executor.submit(resolve_domain, domain, mongo, resolve, retry_evaluated) for domain in unresolved]
         for _ in concurrent.futures.as_completed(futures):
           resolving.update(1)
+        terminator_thread.join()
 
-
-def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated = False):
-  """Resolve domain basic info and store results in db"""
-  name = domain['domain_name']
-  # set up resolvers
-  rdap = RDAP()
-
-  if mode == 'basic':
-    # resolve DNS if needed
-    if domain['remarks']['dns_evaluated_on'] is None or retry_evaluated:
-      dns = DNS()
-      try:
-        domain['dns'], ips = dns.query(name)
-        domain['remarks']['dns_evaluated_on'] = datetime.now()
-        domain['remarks']['dns_had_no_ips'] = ips is None
-        if ips is not None:
-          if domain['ip_data'] is None:
-            domain['ip_data'] = []
-          for ip in ips:
-            if not any(ip_data['ip'] == ip for ip_data in domain['ip_data']):
-              domain['ip_data'].append(empty_ip_data(ip))
-      except ResolutionImpossible:
-        domain['dns'] = None
-        domain['remarks']['dns_evaluated_on'] = datetime.now()
-        domain['remarks']['dns_had_no_ips'] = False
-      except ResolutionNeedsRetry:
-        domain['remarks']['dns_evaluated_on'] = None
-
-    # resolve RDAP if needed
-    if domain['remarks']['rdap_evaluated_on'] is None or retry_evaluated:
-      try:
-        domain['rdap'] = rdap.domain(name)
-        domain['remarks']['rdap_evaluated_on'] = datetime.now()
-      except ResolutionImpossible:
-        domain['rdap'] = None
-        domain['remarks']['rdap_evaluated_on'] = datetime.now()
-      except ResolutionNeedsRetry:
-        domain['remarks']['rdap_evaluated_on'] = None
-
-    # resolve TLS if needed
-    if domain['remarks']['tls_evaluated_on'] is None or retry_evaluated:
-      tls = TLS()
-      try:
-        domain['tls'] = tls.resolve(name)
-      except ResolutionImpossible:
-        domain['tls'] = None
-      except ResolutionNeedsRetry:
-        # immediately retry for timeouts, last chance
-        try:
-          domain['tls'] = tls.resolve(name, timeout=2)
-        except: #anything
-          domain['tls'] = None
-      finally:
-        domain['remarks']['tls_evaluated_on'] = datetime.now()
-
-    # resolve IP RDAP if needed
-    if domain['ip_data'] is not None:
-      for ip_data in domain['ip_data']:
-        if ip_data['rdap'] is None:
-          try:
-            ip_data['rdap'] = rdap.ip(ip_data['ip'])
-            ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
-          except ResolutionImpossible:
-            ip_data['rdap'] = None
-            ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
-          except ResolutionNeedsRetry:
-            ip_data['remarks']['rdap_evaluated_on'] = None
-
-    # mark evaluated time
-    domain['evaluated_on'] = datetime.now()
-
-  elif mode == 'geo':
-    if domain['ip_data'] is not None:
-      geo = GeoIP2()
-      for ip_data in domain['ip_data']:
-        if ip_data['remarks']['geo_evaluated_on'] is None or retry_evaluated:
-          try:
-            ip_data['geo'] = geo.single(ip_data['ip'])
-            ip_data['remarks']['geo_evaluated_on'] = datetime.now()
-          except ResolutionImpossible:
-            ip_data['geo'] = None
-            ip_data['remarks']['geo_evaluated_on'] = datetime.now()
-          except ResolutionNeedsRetry:
-            ip_data['remarks']['geo_evaluated_on'] = None
-
-  elif mode == 'rep':
-    if domain['ip_data'] is not None:
-      nerd = NERD(respect_bucket=True) # respect bucket will not help in parallel mode!!
-      for ip_data in domain['ip_data']:
-        if ip_data['remarks']['rep_evaluated_on'] is None or retry_evaluated:
-          if ip_data['rep'] is None:
-            ip_data['rep'] = {}
-          try:
-            ip_data['rep']['nerd'] = nerd.resolve(ip_data['ip'])
-            ip_data['remarks']['rep_evaluated_on'] = datetime.now()
-          except ResolutionImpossible:
-            ip_data['rep']['nerd'] = None
-            ip_data['remarks']['rep_evaluated_on'] = datetime.now()
-          except ResolutionNeedsRetry:
-            ip_data['remarks']['rep_evaluated_on'] = None
-
-  # store results
-  mongo.store(domain)
-
-
+def terminator(executor: concurrent.futures.ThreadPoolExecutor, progress: ProgressBar, timeout = None):
+  _timeout = timeout if timeout else Config.TIMEOUT * 4
+  last_pos = progress.pos
+  while True:
+    time.sleep(_timeout)
+    if progress.finished:
+      break
+    elif progress.pos == last_pos:
+      click.echo(f'No progress for {_timeout} seconds. Terminating...')
+      logger.debug(f'No progress for {_timeout} seconds. Run terminated.')
+      executor.shutdown(wait=False)
+      break
+    else:
+      last_pos = progress.pos
 
 if __name__ == '__main__':
   cli()
