@@ -127,6 +127,13 @@ class MongoWrapper:
       return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'geo': None}}}, limit=limit)]
     return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'remarks.geo_evaluated_on': None}}}, limit=limit)]
 
+  def get_unresolved_rep(self, retry_evaluated = False, limit: int = 0):
+    # find records where at least one IP is missing rep data, limit to limit
+    reps = ['nerd']
+    if retry_evaluated:
+      return [d for d in self._collection.find({'$or': [{'ip_data': {'$elemMatch': {f'rep.{service}': None}}} for service in reps]}, limit=limit)]
+    return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'remarks.rep_evaluated_on': None}}}, limit=limit)]
+
   def get_resolved(self):
     # find records where all of the optional fields in DomainData are not None
     return [d for d in self._collection.find({'$and': [{'rdap': {'$ne': None}}, {'ip_data': {'$ne': None}}, {'tls': {'$ne': None}}, {'dns': {'$ne': None}}]})]

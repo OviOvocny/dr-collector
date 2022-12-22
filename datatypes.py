@@ -129,7 +129,7 @@ class IPData(TypedDict):
   remarks: IPRemarks
   rdap: Optional[RDAPIPData]
   geo: Optional[GeoData]
-  rep: Optional[Dict[str, Dict]] # reputation data, entries will have arbitrary shape
+  rep: Optional[Dict[str, Optional[Dict]]] # reputation data, entries will have arbitrary shape
 
 class DomainRemarks(TypedDict):
   """Remarks for finding unfinished domains"""

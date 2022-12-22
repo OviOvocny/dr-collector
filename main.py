@@ -10,7 +10,7 @@ from whois.exceptions import WhoisQuotaExceeded
 from exceptions import *
 
 from loaders import SourceLoader, DirectLoader
-from resolvers import DNS, RDAP, TLS, GeoIP2
+from resolvers import DNS, RDAP, TLS, GeoIP2, NERD
 
 
 @click.group()
@@ -61,24 +61,27 @@ def load(file, label, direct):
 @click.option('--resolve', '-r', type=click.Choice(['basic', 'geo', 'rep']), help='Data to resolve', default='basic')
 @click.option('--label', '-l', type=click.Choice(['blacklisted', 'benign']), help='Label for loaded domains', default='blacklisted')
 @click.option('--retry-evaluated', '-e', is_flag=True, help='Retry resolving fields that have failed before', default=False)
-def resolve(resolve, label, retry_evaluated):
+@click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
+@click.option('--sequential', '-s', is_flag=True, help='Resolve domains sequentially instead of in parallel', default=False)
+def resolve(resolve, label, retry_evaluated, limit, sequential):
   """Resolve domains stored in db"""
   mongo = MongoWrapper(label)
   click.echo(f'Looking for domains without {resolve} data in {label} collection...')
   # get domains without data
   unresolved = []
   if resolve == 'basic':
-    unresolved = mongo.get_unresolved(retry_evaluated)
+    unresolved = mongo.get_unresolved(retry_evaluated, limit=limit)
   elif resolve == 'geo':
-    unresolved = mongo.get_unresolved_geo(retry_evaluated)
+    unresolved = mongo.get_unresolved_geo(retry_evaluated, limit=limit)
   elif resolve == 'rep':
-    #unresolved = mongo.get_unresolved_rep(retry_evaluated)
-    pass
+    unresolved = mongo.get_unresolved_rep(retry_evaluated, limit=limit)
   if len(unresolved) == 0:
     click.echo('Nothing to resolve')
     return
   # confirm with user before resolving
   click.echo(f'Found {len(unresolved)} domains.')
+  if sequential:
+    click.echo('Will resolve sequentially. Prepare a few coffees.')
   if resolve == 'basic':
     click.echo('Will resolve DNS, RDAP, TLS, IP RDAP.\nAbout 3 minutes per 1000 empty domains, but this varies a lot.')
     if not click.confirm(f'Estimating run time of {ceil(len(unresolved)/1000)*3} min. Resolve?', default=True):
@@ -87,16 +90,21 @@ def resolve(resolve, label, retry_evaluated):
     click.echo('Will resolve Geo data.\nIf using an API, it may throttle us.')
     if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
       return
+  elif resolve == 'rep':
+    click.echo('Will resolve reputation data.\nIf using an API, it may throttle us.')
+    if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
+      return
   # resolve domains
-  with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
-    futures = [executor.submit(resolve_domain, domain, mongo, resolve, retry_evaluated) for domain in unresolved]
-    complete = 0
-    click.echo(f'\r[{"#" * int(complete / len(unresolved) * 10)}{" " * (10 - int(complete / len(unresolved) * 10))}] {int(complete / len(unresolved) * 100)}%', nl=False)
-    for _ in concurrent.futures.as_completed(futures):
-      complete += 1
-      # progress bar that updates every 100 domains
-      if complete % (len(unresolved) // 100) == 0:
-        click.echo(f'\r[{"#" * int(complete / len(unresolved) * 10)}{" " * (10 - int(complete / len(unresolved) * 10))}] {int(complete / len(unresolved) * 100)}%', nl=False)
+  if sequential:
+    with click.progressbar(unresolved, show_pos=True, show_percent=True) as resolving:
+      for domain in resolving:
+        resolve_domain(domain, mongo, resolve, retry_evaluated)
+  else:
+    with click.progressbar(length=len(unresolved), show_pos=True, show_percent=True) as resolving:
+      with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
+        futures = [executor.submit(resolve_domain, domain, mongo, resolve, retry_evaluated) for domain in unresolved]
+        for _ in concurrent.futures.as_completed(futures):
+          resolving.update(1)
 
 
 def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated = False):
@@ -184,7 +192,20 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             ip_data['remarks']['geo_evaluated_on'] = None
 
   elif mode == 'rep':
-    pass
+    if domain['ip_data'] is not None:
+      nerd = NERD(respect_bucket=True) # respect bucket will not help in parallel mode!!
+      for ip_data in domain['ip_data']:
+        if ip_data['remarks']['rep_evaluated_on'] is None or retry_evaluated:
+          if ip_data['rep'] is None:
+            ip_data['rep'] = {}
+          try:
+            ip_data['rep']['nerd'] = nerd.resolve(ip_data['ip'])
+            ip_data['remarks']['rep_evaluated_on'] = datetime.now()
+          except ResolutionImpossible:
+            ip_data['rep']['nerd'] = None
+            ip_data['remarks']['rep_evaluated_on'] = datetime.now()
+          except ResolutionNeedsRetry:
+            ip_data['remarks']['rep_evaluated_on'] = None
 
   # store results
   mongo.store(domain)

@@ -6,4 +6,4 @@ from .tls import TLS
 from .geo.geoip2 import Geo as GeoIP2
 from .geo.universal_api import Geo as GeoAPI
 
-#from .rep.nerd import NERD
+from .rep.nerd import NERD
