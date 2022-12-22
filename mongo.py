@@ -114,16 +114,18 @@ class MongoWrapper:
       return [d for d in self._collection.find({})]
 
   def get_unresolved(self, retry_evaluated = False, limit: int = 0):
-    # find records where at least one of the optional fields in DomainData is None, limit to limit
     if retry_evaluated:
-      return [d for d in self._collection.find({'$or': [{'rdap': None}, {'ip_data': None}, {'tls': None}, {'dns': None}]}, limit=limit)]
-    return [d for d in self._collection.find({'$or': [{'rdap_evaluated_on': None}, {'ip_data': None}, {'tls_evaluated_on': None}, {'dns': None}]}, limit=limit)]
+      # find records with empty data fields
+      return [d for d in self._collection.find({'$or': [{'rdap': None}, {'ip_data': None}, {'ip_data': {'$elemMatch': {'rdap': None}}}, {'tls': None}, {'dns': None}]}, limit=limit)]
+    else:
+      # find records with missing evaluation dates in remarks
+      return [d for d in self._collection.find({'$or': [{'remarks.rdap_evaluated_on': None}, {'ip_data': {'$elemMatch': {'remarks.rdap_evaluated_on': None}}}, {'remarks.tls_evaluated_on': None}, {'remarks.dns_evaluated_on': None}]}, limit=limit)]
 
   def get_unresolved_geo(self, retry_evaluated = False, limit: int = 0):
     # find records where at least one of the dicts in ip_data has no geo_evaluated key, limit to limit
     if retry_evaluated:
       return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'geo': None}}}, limit=limit)]
-    return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'geo_evaluated_on': None}}}, limit=limit)]
+    return [d for d in self._collection.find({'ip_data': {'$elemMatch': {'remarks.geo_evaluated_on': None}}}, limit=limit)]
 
   def get_resolved(self):
     # find records where all of the optional fields in DomainData are not None

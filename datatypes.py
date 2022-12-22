@@ -115,15 +115,30 @@ class TLSData(TypedDict):
   count: int
   certificates: List[Certificate]
 
+class IPRemarks(TypedDict):
+  """Remarks for finding unfinished IPs"""
+  # dates of last SUCCESSFUL evaluation
+  rdap_evaluated_on: Optional[datetime]
+  geo_evaluated_on: Optional[datetime]
+  rep_evaluated_on: Optional[datetime]
+
 # DB data record
 class IPData(TypedDict):
   """Single IP data structure used in the domain structure"""
   ip: str
+  remarks: IPRemarks
   rdap: Optional[RDAPIPData]
   geo: Optional[GeoData]
-  geo_evaluated_on: Optional[datetime]
   rep: Optional[Dict[str, Dict]] # reputation data, entries will have arbitrary shape
-  rep_evaluated_on: Optional[datetime]
+
+class DomainRemarks(TypedDict):
+  """Remarks for finding unfinished domains"""
+  # dates of last SUCCESSFUL evaluation
+  dns_evaluated_on: Optional[datetime]
+  rdap_evaluated_on: Optional[datetime]
+  tls_evaluated_on: Optional[datetime]
+  # special flag for domains that had no IPs in DNS
+  dns_had_no_ips: bool
 
 class DomainData(TypedDict):
   """Single domain main data structure (goes into DB)"""
@@ -131,12 +146,11 @@ class DomainData(TypedDict):
   label: str # blacklisted/benign as originally sourced, also mongo collection name
   sourced_on: datetime # when the domain was first added
   evaluated_on: Optional[datetime] # when the domain was last evaluated
+  remarks: DomainRemarks # info about resolution - dates, failures, etc. (for finding unfinished domains)
   # data
   dns: Optional[DNSData]
   rdap: Optional[RDAPDomainData]
-  rdap_evaluated_on: Optional[datetime]
   tls: Optional[TLSData]
-  tls_evaluated_on: Optional[datetime]
   ip_data: Optional[List[IPData]]
 
 def empty_domain_data(domain_name: str, label: str) -> DomainData:
@@ -146,10 +160,28 @@ def empty_domain_data(domain_name: str, label: str) -> DomainData:
     'label': label,
     'sourced_on': datetime.now(),
     'evaluated_on': None,
+    'remarks': {
+      'dns_evaluated_on': None,
+      'rdap_evaluated_on': None,
+      'tls_evaluated_on': None,
+      'dns_had_no_ips': False
+    },
     'dns': None,
     'rdap': None,
-    'rdap_evaluated_on': None,
     'tls': None,
-    'tls_evaluated_on': None,
     'ip_data': None
+  }
+
+def empty_ip_data(ip: str) -> IPData:
+  """Returns an empty IPData structure"""
+  return {
+    'ip': ip,
+    'remarks': {
+      'rdap_evaluated_on': None,
+      'geo_evaluated_on': None,
+      'rep_evaluated_on': None
+    },
+    'rdap': None,
+    'geo': None,
+    'rep': None
   }

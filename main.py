@@ -4,18 +4,13 @@ import concurrent.futures
 from datetime import datetime
 from config import Config
 from mongo import MongoWrapper
-from datatypes import empty_domain_data, DomainData, IPData
+from datatypes import empty_domain_data, empty_ip_data, DomainData, IPData
 from logger import logger
 from whois.exceptions import WhoisQuotaExceeded
+from exceptions import *
 
 from loaders import SourceLoader, DirectLoader
 from resolvers import DNS, RDAP, TLS, GeoIP2
-
-# set up resolvers
-dns = DNS()
-rdap = RDAP()
-tls = TLS()
-geo = GeoIP2()
 
 
 @click.group()
@@ -107,37 +102,86 @@ def resolve(resolve, label, retry_evaluated):
 def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated = False):
   """Resolve domain basic info and store results in db"""
   name = domain['domain_name']
+  # set up resolvers
+  rdap = RDAP()
 
   if mode == 'basic':
-    if domain['dns'] is None:
-      domain['dns'], ips = dns.query(name)
-      if ips is not None:
-        if domain['ip_data'] is None:
-          domain['ip_data'] = []
-        for ip in ips:
-          if not any(ip_data['ip'] == ip for ip_data in domain['ip_data']):
-            domain['ip_data'].append(IPData(ip=ip, rdap=None, rep=None, geo=None, geo_evaluated_on=None, rep_evaluated_on=None))
-    if domain['rdap_evaluated_on'] is None or retry_evaluated:
+    # resolve DNS if needed
+    if domain['remarks']['dns_evaluated_on'] is None or retry_evaluated:
+      dns = DNS()
+      try:
+        domain['dns'], ips = dns.query(name)
+        domain['remarks']['dns_evaluated_on'] = datetime.now()
+        domain['remarks']['dns_had_no_ips'] = ips is None
+        if ips is not None:
+          if domain['ip_data'] is None:
+            domain['ip_data'] = []
+          for ip in ips:
+            if not any(ip_data['ip'] == ip for ip_data in domain['ip_data']):
+              domain['ip_data'].append(empty_ip_data(ip))
+      except ResolutionImpossible:
+        domain['dns'] = None
+        domain['remarks']['dns_evaluated_on'] = datetime.now()
+        domain['remarks']['dns_had_no_ips'] = False
+      except ResolutionNeedsRetry:
+        domain['remarks']['dns_evaluated_on'] = None
+
+    # resolve RDAP if needed
+    if domain['remarks']['rdap_evaluated_on'] is None or retry_evaluated:
       try:
         domain['rdap'] = rdap.domain(name)
-        domain['rdap_evaluated_on'] = datetime.now()
-      except WhoisQuotaExceeded:
-        domain['rdap_evaluated_on'] = None
-    if domain['tls_evaluated_on'] is None or retry_evaluated:
-      domain['tls'] = tls.resolve(name)
-      domain['tls_evaluated_on'] = datetime.now()
+        domain['remarks']['rdap_evaluated_on'] = datetime.now()
+      except ResolutionImpossible:
+        domain['rdap'] = None
+        domain['remarks']['rdap_evaluated_on'] = datetime.now()
+      except ResolutionNeedsRetry:
+        domain['remarks']['rdap_evaluated_on'] = None
+
+    # resolve TLS if needed
+    if domain['remarks']['tls_evaluated_on'] is None or retry_evaluated:
+      tls = TLS()
+      try:
+        domain['tls'] = tls.resolve(name)
+      except ResolutionImpossible:
+        domain['tls'] = None
+      except ResolutionNeedsRetry:
+        # immediately retry for timeouts, last chance
+        try:
+          domain['tls'] = tls.resolve(name, timeout=2)
+        except: #anything
+          domain['tls'] = None
+      finally:
+        domain['remarks']['tls_evaluated_on'] = datetime.now()
+
+    # resolve IP RDAP if needed
     if domain['ip_data'] is not None:
       for ip_data in domain['ip_data']:
         if ip_data['rdap'] is None:
-          ip_data['rdap'] = rdap.ip(ip_data['ip'])
+          try:
+            ip_data['rdap'] = rdap.ip(ip_data['ip'])
+            ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
+          except ResolutionImpossible:
+            ip_data['rdap'] = None
+            ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
+          except ResolutionNeedsRetry:
+            ip_data['remarks']['rdap_evaluated_on'] = None
+
+    # mark evaluated time
     domain['evaluated_on'] = datetime.now()
 
   elif mode == 'geo':
     if domain['ip_data'] is not None:
+      geo = GeoIP2()
       for ip_data in domain['ip_data']:
-        if ip_data['geo_evaluated_on'] is None or retry_evaluated:
-          ip_data['geo'] = geo.single(ip_data['ip'])
-          ip_data['geo_evaluated_on'] = datetime.now()
+        if ip_data['remarks']['geo_evaluated_on'] is None or retry_evaluated:
+          try:
+            ip_data['geo'] = geo.single(ip_data['ip'])
+            ip_data['remarks']['geo_evaluated_on'] = datetime.now()
+          except ResolutionImpossible:
+            ip_data['geo'] = None
+            ip_data['remarks']['geo_evaluated_on'] = datetime.now()
+          except ResolutionNeedsRetry:
+            ip_data['remarks']['geo_evaluated_on'] = None
 
   elif mode == 'rep':
     pass

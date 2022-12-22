@@ -5,6 +5,7 @@ from typing import Tuple, List, Union
 import dns.resolver
 from config import Config
 from datatypes import DNSData
+from exceptions import *
 
 class DNS:
   def __init__(self):
@@ -14,12 +15,22 @@ class DNS:
   # query domain for all record types in record_types
   def query(self, domain: str, record_types = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'SOA', 'TXT']) -> Tuple[DNSData, Union[List[str], None]]:
     records = {}
+    filled = 0
+    retry_possible = False
     for record_type in record_types:
       try:
         answer = self._dns.resolve(domain, record_type, lifetime=Config.TIMEOUT)
         records[record_type] = [a.to_text() for a in answer]
+        filled += 1
+      except dns.resolver.LifetimeTimeout: #type: ignore
+        # if we get a timeout, we can retry another time
+        retry_possible = True
+        records[record_type] = None
       except:
         records[record_type] = None
+    # if no records were found, raise an exception
+    if filled == 0 and retry_possible:
+      raise ResolutionNeedsRetry
     # return records, plus resolved IP4 for convenience
     return DNSData(**records), records.get('A', None)
 

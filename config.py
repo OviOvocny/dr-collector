@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-  TIMEOUT = 10
+  TIMEOUT = 3
   DNS_SERVERS = ['1.1.1.1', '1.0.0.1']
   MAX_WORKERS = None
   # MongoDB

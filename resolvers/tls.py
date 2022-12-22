@@ -10,6 +10,7 @@ from config import Config
 from logger import logger
 from typing import List
 from datatypes import TLSData, Certificate, CertificateExtension
+from exceptions import *
 
 class TLS:
   def __init__(self, timeout = Config.TIMEOUT):
@@ -43,26 +44,26 @@ class TLS:
       result["cert_chain"] = chain
     except socket.gaierror as e:
       logger.error(f"{host} TLS: Cant resolve domain name or connection error")
-      return None
+      raise ResolutionImpossible
     except socket.timeout as e:
       logger.error(f"{host} TLS: socket intimeout")
-      return None
+      raise ResolutionNeedsRetry
     except OpenSSL.SSL.Error as e:
       logger.error(f"{host} TLS: cannot find any root certificates")
-      return None
+      raise ResolutionImpossible
     except ConnectionRefusedError as e:
       logger.error(f"{host} TLS: connection refused")
-      return None
+      raise ResolutionImpossible
     except OSError as e:
       logger.error(f"{host} TLS: built-in exception in Python")
-      return None
+      raise ResolutionNeedsRetry
 
     try:
       sock.shutdown()
       sock.close()
     except:
       logger.error(f"{host} TLS: Fatal error during socket closing")
-      return None
+      return result
 
     return result
 
@@ -127,8 +128,9 @@ class TLS:
     return result
 
   #
-  def resolve(self, host: str, port: int = 443):
+  def resolve(self, host: str, port: int = 443, timeout: int = Config.TIMEOUT):
     """Resolve TLS data from host:port"""
+    self.timeout = timeout
     data = self._download(host, port)
     return None if data is None else TLSData(
         cipher = data["cipher_name"],

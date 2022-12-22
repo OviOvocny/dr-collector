@@ -7,6 +7,7 @@ import whois
 import json
 from logger import logger
 from datatypes import RDAPDomainData, RDAPIPData, RDAPASNData, RDAPEntityData, IPNetwork
+from exceptions import *
 from typing import Optional
 
 class RDAP:
@@ -28,36 +29,36 @@ class RDAP:
         return whois_to_rdap_domain(w)
       except whois.exceptions.WhoisQuotaExceeded:
         logger.critical(f'Whois quota exceeded! (at {domain})')
-        raise whois.exceptions.WhoisQuotaExceeded
+        raise ResolutionNeedsRetry
+      except whois.exceptions.UnknownTld:
+        logger.error(f'Unknown TLD for {domain}')
+        raise ResolutionImpossible
+      except whois.exceptions.WhoisPrivateRegistry:
+        logger.error(f'Whois private registry for {domain}')
+        raise ResolutionImpossible
       except:
         logger.error(f'Whois query for {domain} failed')
-        return None
+        raise ResolutionImpossible
 
   def ip(self, ip: str, **kwargs) -> Optional[RDAPIPData]:
-    try:
-      ipdata = whoisit.ip(ip, **kwargs)
-      ipdata['network'] = IPNetwork(
-        prefix_length=ipdata['network'].prefixlen,
-        network_address=str(ipdata['network'].network_address),
-        netmask=str(ipdata['network'].netmask),
-        broadcast_address=str(ipdata['network'].broadcast_address),
-        hostmask=str(ipdata['network'].hostmask)
-      )
-      return RDAPIPData(**ipdata)
-    except whoisit.errors.ResourceDoesNotExist:
-      return None
+    # raises ResourceDoesNotExist if not found
+    ipdata = whoisit.ip(ip, **kwargs)
+    ipdata['network'] = IPNetwork(
+      prefix_length=ipdata['network'].prefixlen,
+      network_address=str(ipdata['network'].network_address),
+      netmask=str(ipdata['network'].netmask),
+      broadcast_address=str(ipdata['network'].broadcast_address),
+      hostmask=str(ipdata['network'].hostmask)
+    )
+    return RDAPIPData(**ipdata)
 
   def asn(self, asn: int, **kwargs) -> Optional[RDAPASNData]:
-    try:
-      return whoisit.asn(asn, **kwargs)
-    except whoisit.errors.ResourceDoesNotExist:
-      return None
+    # raises exc if not found
+    return whoisit.asn(asn, **kwargs)
 
   def entity(self, entity: str, **kwargs) -> Optional[RDAPEntityData]:
-    try:
-      return whoisit.entity(entity, **kwargs)
-    except whoisit.errors.ResourceDoesNotExist:
-      return None
+    # raises exc if not found
+    return whoisit.entity(entity, **kwargs)
 
 
 def save_bootstrap_data():

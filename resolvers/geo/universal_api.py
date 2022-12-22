@@ -4,7 +4,9 @@ __author__ = "Adam Horák"
 
 from config import Config
 from datatypes import GeoData
+from exceptions import *
 from typing import Union, List, Tuple, Callable
+from logger import logger
 import requests
 import time
 
@@ -83,6 +85,12 @@ class Geo:
           results += [self._mapper(d) for d in data]
         else:
           results.append(self._mapper(data))
+      elif resp.status_code == 429:
+        # API rate limit exceeded
+        raise ResolutionNeedsRetry
+      else:
+        logger.error(f"GEO API returned status code {resp.status_code}")
+        raise ResolutionImpossible
     session.close()
     return results
 

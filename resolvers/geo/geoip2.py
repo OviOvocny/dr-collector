@@ -2,6 +2,8 @@ from datatypes import GeoData
 from typing import List
 import geoip2.database, geoip2.models, geoip2.errors
 
+from exceptions import *
+
 def default_mapper(data: geoip2.models.City) -> GeoData:
   """
   Default mapping function for geolocation data from ip-api.com
@@ -37,7 +39,7 @@ class Geo:
       try:
         result.append(default_mapper(self._reader.city(ip)))
       except geoip2.errors.AddressNotFoundError:
-        continue
+        raise ResolutionImpossible
     return result
 
   def single(self, ip: str) -> GeoData:
