@@ -2,6 +2,7 @@
 __author__ = "Adam Horák"
 # FYI: These APIs are heavily rate-limited or paid. RDAP can be used to get country data for IP addresses.
 
+from config import Config
 from datatypes import GeoData
 from typing import Union, List, Tuple, Callable
 import requests
@@ -43,7 +44,8 @@ class Geo:
     api_endpoint: str = "http://ip-api.com/batch",
     api_key: Union[str,None] = None,
     fields_mapper: Callable[[dict], GeoData] = default_mapper,
-    request_constructor: Callable[[str, List[str], int], Tuple[requests.Request, List[str]]] = default_request_constructor
+    request_constructor: Callable[[str, List[str], int], Tuple[requests.Request, List[str]]] = default_request_constructor,
+    **kwargs
   ):
     self._api = api_endpoint
     self._key = api_key
@@ -52,6 +54,8 @@ class Geo:
     # api call limits, default to no limits
     self._requests_per_period = float("inf")
     self._cooldown_seconds = 0
+    # set custom timeout if provided
+    self._timeout: int = kwargs["timeout"] if "timeout" in kwargs else Config.TIMEOUT
 
   def set_throttling(self, limit: int, period: int):
     """Set API call limits: request number per period in seconds"""
@@ -71,7 +75,7 @@ class Geo:
         time.sleep(self._cooldown_seconds)
       # send request for defined amount of IPs and remove them from the list
       req, ip_list = self._constructor(self._api, ip_list, ips_per_request)
-      resp = session.send(req.prepare())
+      resp = session.send(req.prepare(), timeout=self._timeout)
       requests_sent += 1
       if resp.status_code == 200:
         data = resp.json()
