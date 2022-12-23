@@ -77,22 +77,23 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
   click.echo(f'Looking for domains without {resolve} data in {label} collection...')
   # get domains without data
   unresolved = []
+  count = 0
   if resolve == 'basic':
-    unresolved = mongo.get_unresolved(retry_evaluated, limit=limit)
+    unresolved, count = mongo.get_unresolved(retry_evaluated, limit=limit)
   elif resolve == 'geo':
-    unresolved = mongo.get_unresolved_geo(retry_evaluated, limit=limit)
+    unresolved, count = mongo.get_unresolved_geo(retry_evaluated, limit=limit)
   elif resolve == 'rep':
-    unresolved = mongo.get_unresolved_rep(retry_evaluated, limit=limit)
-  if len(unresolved) == 0:
+    unresolved, count = mongo.get_unresolved_rep(retry_evaluated, limit=limit)
+  if count == 0:
     click.echo('Nothing to resolve')
     return
   # confirm with user before resolving
-  click.echo(f'Found {len(unresolved)} domains.')
+  click.echo(f'Found {count} domains.')
   if sequential:
     click.echo('Will resolve sequentially. Prepare a few coffees.')
   if resolve == 'basic':
     click.echo('Will resolve DNS, RDAP, TLS, IP RDAP.\nAbout 3 minutes per 1000 empty domains, but this varies a lot.')
-    if not click.confirm(f'Estimating run time of {ceil(len(unresolved)/1000)*3} min. Resolve?', default=True):
+    if not click.confirm(f'Estimating run time of {ceil(count/1000)*3} min. Resolve?', default=True):
       return
   elif resolve == 'geo':
     click.echo('Will resolve Geo data.\nIf using an API, it may throttle us.')
@@ -108,7 +109,7 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
       for domain in resolving:
         resolve_domain(domain, mongo, resolve, retry_evaluated)
   else:
-    with click.progressbar(length=len(unresolved), show_pos=True, show_percent=True) as resolving:
+    with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
       with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
         terminator_thread = threading.Thread(target=terminator, args=(executor, resolving))
         futures = [executor.submit(resolve_domain, domain, mongo, resolve, retry_evaluated) for domain in unresolved]
