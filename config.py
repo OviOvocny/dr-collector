@@ -4,6 +4,7 @@ load_dotenv()
 
 class Config:
   TIMEOUT = 3
+  TERMINATOR = 10 * 60
   DNS_SERVERS = ['193.17.47.1', '185.43.135.1']
   MAX_WORKERS = None
   # MongoDB
