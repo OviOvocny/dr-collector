@@ -30,8 +30,9 @@ def load(file, label, direct, yes):
   # ask user what type of file it is
   file_type = click.prompt('File type', type=click.Choice(['csv', 'plain']), default='csv')
   # confirm with user before importing
-  if not yes or click.confirm(f'Load domain list(s) from {file} into {label} collection?', default=True):
-    return
+  if not yes:
+    if not click.confirm(f'Load domain list(s) from {file} into {label} collection?', default=True):
+      return
   else:
     logger.info(f'Importing sources from {file} into {label} collection')
   # load sources from file
@@ -96,16 +97,19 @@ def resolve(resolve, label, retry_evaluated, limit, sequential, yes):
     click.echo('Will resolve sequentially. Prepare a few coffees.')
   if resolve == 'basic':
     click.echo('Will resolve DNS, RDAP, TLS, IP RDAP.\nAbout 3 minutes per 1000 empty domains, but this varies a lot.')
-    if not yes or click.confirm(f'Estimating run time of {ceil(count/1000)*3} min. Resolve?', default=True):
-      return
+    if not yes:
+      if not click.confirm(f'Estimating run time of {ceil(count/1000)*3} min. Resolve?', default=True):
+        return
   elif resolve == 'geo':
     click.echo('Will resolve Geo data.\nIf using an API, it may throttle us.')
-    if not yes or click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
-      return
+    if not yes:
+      if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
+        return
   elif resolve == 'rep':
     click.echo('Will resolve reputation data.\nIf using an API, it may throttle us.')
-    if not yes or yes or click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
-      return
+    if not yes:
+      if not yes or click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
+        return
   # resolve domains
   if sequential:
     with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
