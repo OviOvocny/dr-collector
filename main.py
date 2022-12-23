@@ -106,9 +106,10 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
       return
   # resolve domains
   if sequential:
-    with click.progressbar(unresolved, show_pos=True, show_percent=True) as resolving:
+    with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
       for domain in resolving:
         resolve_domain(domain, mongo, resolve, retry_evaluated)
+        resolving.update(1)
   else:
     with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
       with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
