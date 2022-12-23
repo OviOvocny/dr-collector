@@ -55,7 +55,7 @@ def load(file, label, direct):
       stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list])
       total_stored += stored
       total_writes += writes
-    result = f'Added {total_stored} domains in {total_writes} s, skipped {total_sourced - total_stored} duplicates.'
+    result = f'Added {total_stored} domains in {total_writes} writes, skipped {total_sourced - total_stored} duplicates.'
     click.echo(f'Finished: {result}')
     logger.info(result)
   except ValueError as e:
