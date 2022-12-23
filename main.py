@@ -117,7 +117,7 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
         futures = [executor.submit(resolve_domain, domain, mongo, resolve, retry_evaluated) for domain in unresolved]
         for _ in concurrent.futures.as_completed(futures):
           resolving.update(1)
-        click.echo(f'Waiting for terminator... (max {Config.TIMEOUT * 4} seconds)')
+        click.echo(f'Waiting for terminator... (max {Config.TIMEOUT * 5} seconds)')
         terminator_thread.join()
 
 def terminator(executor: concurrent.futures.ThreadPoolExecutor, progress: ProgressBar, mongo: MongoWrapper, timeout = None):
