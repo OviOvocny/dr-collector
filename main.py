@@ -107,7 +107,7 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
   # resolve domains
   if sequential:
     with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
-      for domain in resolving:
+      for domain in unresolved:
         resolve_domain(domain, mongo, resolve, retry_evaluated)
         resolving.update(1)
   else:
