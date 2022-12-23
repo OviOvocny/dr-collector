@@ -66,6 +66,9 @@ class MongoWrapper:
     logger.debug("DB: Switching to collection " + collection)
     self._collection = self._db[collection]
 
+  def index_by(self, key: str):
+    self._collection.create_index(key)
+
 # storing
 
   def store(self, data: DomainData):

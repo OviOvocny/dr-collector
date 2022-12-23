@@ -45,6 +45,7 @@ def load(file, label, direct):
     click.echo(f'Found {loader.source_count()} sources')
   # load and store domains in db
   mongo = MongoWrapper(label)
+  mongo.index_by('domain_name')
   total_sourced = 0
   total_stored = 0
   total_writes = 0
