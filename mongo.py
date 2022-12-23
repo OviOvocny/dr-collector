@@ -2,6 +2,7 @@
 __author__ = "Adam Horák"
 
 import sys
+import click
 import pymongo
 import atexit
 import concurrent.futures
@@ -13,7 +14,9 @@ from logger import logger
 
 def chunks(l: List, n: int):
   """Yield successive equal about-n-sized chunks from l."""
-  chunk_count = len(l) // n
+  chunk_count = ceil(len(l) / n)
+  if chunk_count == 0:
+    yield l
   chunk_size = ceil(len(l) / chunk_count)
   for i in range(0, len(l), chunk_size):
     yield l[i:i + chunk_size]
@@ -86,17 +89,16 @@ class MongoWrapper:
   def parallel_store(self, data: List[DomainData]):
     """Store data in parallel, no batch queue, no auto collection switching (make sure to switch_collection() first if you need to)"""
     with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
-      print(f'Preparing {len(data)} items...', end='\r')
+      click.echo(f'Preparing {len(data)} items...')
       futures = [executor.submit(self._upsert, chunk, 'domain_name') for chunk in chunks(data, Config.MONGO_BATCH_SIZE)]
-      print(f'Sending {len(data)} items...  ', end='\r')
-      complete = 0
       stored = 0
-      for future in concurrent.futures.as_completed(futures):
-        complete += 1
-        stored += future.result().upserted_count
-        print(str(stored) + ' items [' + '#' * complete + ' ' * (len(futures) - complete) + ']', end='\r')
-      sys.stdout.write("\033[K")
-      print(f'Stored {stored} of {len(data)} items in {len(futures)} writes')
+      with click.progressbar(length=len(futures), show_pos=True, show_percent=True, label="Writes") as loading:
+        for future in concurrent.futures.as_completed(futures):
+          loading.update(1)
+          stored += future.result().upserted_count
+      result = f'Stored {stored} of {len(data)} items in {len(futures)} writes'
+      logger.info(result)
+      click.echo(result)
     return stored, len(futures)
 
   def set_by_path(self, domain_name: str, path: str, data):
