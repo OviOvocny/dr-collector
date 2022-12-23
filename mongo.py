@@ -3,7 +3,7 @@ __author__ = "Adam Horák"
 
 import sys
 import click
-import pymongo
+import pymongo, pymongo.errors
 import atexit
 import concurrent.futures
 from math import ceil
@@ -67,7 +67,10 @@ class MongoWrapper:
     self._collection = self._db[collection]
 
   def index_by(self, key: str):
-    self._collection.create_index(key)
+    try:
+      self._collection.create_index(key, name=f'{key}_index', unique=True)
+    except pymongo.errors.OperationFailure:
+      pass
 
 # storing
 
