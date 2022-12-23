@@ -2,7 +2,7 @@ import click
 from click._termui_impl import ProgressBar
 import time
 import threading
-import _thread
+import os
 import concurrent.futures
 from math import ceil
 from config import Config
@@ -112,7 +112,7 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
   else:
     with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
       with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
-        terminator_thread = threading.Thread(target=terminator, args=(executor, resolving))
+        terminator_thread = threading.Thread(target=terminator, args=(executor, resolving, mongo))
         terminator_thread.start()
         futures = [executor.submit(resolve_domain, domain, mongo, resolve, retry_evaluated) for domain in unresolved]
         for _ in concurrent.futures.as_completed(futures):
@@ -120,8 +120,8 @@ def resolve(resolve, label, retry_evaluated, limit, sequential):
         click.echo(f'Waiting for terminator... (max {Config.TIMEOUT * 4} seconds)')
         terminator_thread.join()
 
-def terminator(executor: concurrent.futures.ThreadPoolExecutor, progress: ProgressBar, timeout = None):
-  _timeout = timeout if timeout else Config.TIMEOUT * 2
+def terminator(executor: concurrent.futures.ThreadPoolExecutor, progress: ProgressBar, mongo: MongoWrapper, timeout = None):
+  _timeout = timeout if timeout else Config.TIMEOUT * 5
   last_pos = progress.pos
   while True:
     time.sleep(_timeout)
@@ -131,10 +131,9 @@ def terminator(executor: concurrent.futures.ThreadPoolExecutor, progress: Progre
       click.echo(f'No progress for {_timeout} seconds. Terminating...')
       logger.debug(f'No progress for {_timeout} seconds. Run terminated.')
       executor.shutdown(wait=False, cancel_futures=True)
-      _thread.interrupt_main()
-      _thread.interrupt_main()
-      _thread.interrupt_main()
-      # PLS
+      mongo._cleanup()
+      click.echo('DB buffer flushed safely.')
+      os._exit(800)
     else:
       last_pos = progress.pos
 
