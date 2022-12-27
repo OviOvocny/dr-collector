@@ -8,13 +8,13 @@ from datetime import datetime
 # DNS
 class DNSData(TypedDict):
   """DNS data structure"""
-  A: List[str]
-  AAAA: List[str]
-  CNAME: List[str]
-  MX: List[str]
-  NS: List[str]
-  SOA: List[str]
-  TXT: List[str]
+  A: Optional[List[str]]
+  AAAA: Optional[List[str]]
+  CNAME: Optional[List[str]]
+  MX: Optional[List[str]]
+  NS: Optional[List[str]]
+  SOA: Optional[List[str]]
+  TXT: Optional[List[str]]
 
 # Geo
 class GeoData(TypedDict):
