@@ -121,7 +121,7 @@ class MongoWrapper:
     else:
       return [d for d in self._collection.find({})]
 
-  def _unresolved_query(self, query, limit: int = 0):
+  def _find_query(self, query, limit: int = 0):
     db_count = self._collection.count_documents(query)
     count = db_count if limit == 0 else min(limit, db_count)
     return self._collection.find(query, limit=limit, batch_size=Config.MONGO_BATCH_SIZE), count
@@ -130,13 +130,13 @@ class MongoWrapper:
     query = {'$or': [{'remarks.rdap_evaluated_on': None}, {'ip_data': {'$elemMatch': {'remarks.rdap_evaluated_on': None}}}, {'remarks.tls_evaluated_on': None}, {'remarks.dns_evaluated_on': None}]}
     if retry_evaluated:
       query = {'$or': [{'rdap': None}, {'ip_data': None}, {'ip_data': {'$elemMatch': {'rdap': None}}}, {'tls': None}, {'dns': None}]}
-    return self._unresolved_query(query, limit)
+    return self._find_query(query, limit)
 
   def get_unresolved_geo(self, retry_evaluated = False, limit: int = 0):
     query = {'ip_data': {'$elemMatch': {'remarks.geo_evaluated_on': None}}}
     if retry_evaluated:
       query = {'ip_data': {'$elemMatch': {'geo': None}}}
-    return self._unresolved_query(query, limit)
+    return self._find_query(query, limit)
 
   def get_unresolved_rep(self, retry_evaluated = False, limit: int = 0):
     # find records where at least one IP is missing rep data, limit to limit
@@ -144,12 +144,12 @@ class MongoWrapper:
     query = {'ip_data': {'$elemMatch': {'remarks.rep_evaluated_on': None}}}
     if retry_evaluated:
       query = {'$or': [{'ip_data': {'$elemMatch': {f'rep.{service}': None}}} for service in reps]}
-    return self._unresolved_query(query, limit)
+    return self._find_query(query, limit)
 
   def get_resolved(self):
     # find records where all of the optional fields in DomainData are not None
-    query = {'$and': [{'rdap': {'$ne': None}}, {'ip_data': {'$ne': None}}, {'tls': {'$ne': None}}, {'dns': {'$ne': None}}]}
-    return self._unresolved_query(query)
+    query = {'evaluated_on': {'$ne': None}}
+    return self._find_query(query)
 
   def get_names_with_missing(self, fields: List[str]):
     # find names for which all of the specified fields are None
