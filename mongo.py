@@ -4,10 +4,11 @@ __author__ = "Adam Horák"
 import sys
 import click
 import pymongo, pymongo.errors
+from pymongo.cursor import Cursor
 import atexit
 import concurrent.futures
 from math import ceil
-from typing import List
+from typing import List, Tuple
 from config import Config
 from datatypes import DomainData, GeoData
 from logger import logger
@@ -121,7 +122,7 @@ class MongoWrapper:
     else:
       return [d for d in self._collection.find({})]
 
-  def _find_query(self, query, limit: int = 0):
+  def _find_query(self, query, limit: int = 0) -> Tuple[Cursor[DomainData], int]:
     db_count = self._collection.count_documents(query)
     count = db_count if limit == 0 else min(limit, db_count)
     return self._collection.find(query, limit=limit, batch_size=Config.MONGO_BATCH_SIZE), count
