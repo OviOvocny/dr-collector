@@ -13,11 +13,25 @@ from exceptions import *
 
 from loaders import SourceLoader, DirectLoader
 from resolvers import resolve_domain
+from stats import get_stats, print_stats, write_stats
 
 
 @click.group()
 def cli():
   MongoWrapper.test_connection()
+
+
+@cli.command('stats', help='Show stats for multiple collections')
+@click.option('--collections', '-c', type=click.Choice(['blacklisted', 'benign']), help='Collections to show stats for', multiple=True, default=['blacklisted', 'benign'])
+@click.option('--write', '-w', is_flag=True, help='Write stats to stats.json file')
+def stats(collections, write):
+  """Show stats for multiple collections"""
+  click.echo('Getting stats...')
+  stats = get_stats(collections)
+  print_stats(stats)
+  if write:
+    write_stats(stats)
+    click.echo('Stats also written to stats.json')
 
 
 @cli.command('load', help='Load sources from file, download and store in db')
