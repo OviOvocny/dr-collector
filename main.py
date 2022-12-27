@@ -108,7 +108,7 @@ def resolve(type, label, retry_evaluated, limit, sequential, yes):
   elif type == 'rep':
     click.echo('Will resolve reputation data.\nIf using an API, it may throttle us.')
     if not yes:
-      if not yes or click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
+      if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
         return
   # resolve domains
   if sequential:
