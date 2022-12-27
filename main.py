@@ -69,24 +69,24 @@ def load(file, label, direct, yes):
 
 
 @cli.command('resolve', help='Resolve domains stored in db')
-@click.option('--resolve', '-r', type=click.Choice(['basic', 'geo', 'rep']), help='Data to resolve', default='basic')
+@click.option('--type', '-t', type=click.Choice(['basic', 'geo', 'rep']), help='Data to resolve', default='basic')
 @click.option('--label', '-l', type=click.Choice(['blacklisted', 'benign']), help='Label for loaded domains', default='blacklisted')
 @click.option('--retry-evaluated', '-e', is_flag=True, help='Retry resolving fields that have failed before', default=False)
 @click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
 @click.option('--sequential', '-s', is_flag=True, help='Resolve domains sequentially instead of in parallel', default=False)
 @click.option('--yes', '-y', is_flag=True, help='Don\'t interact, just start')
-def resolve(resolve, label, retry_evaluated, limit, sequential, yes):
+def resolve(type, label, retry_evaluated, limit, sequential, yes):
   """Resolve domains stored in db"""
   mongo = MongoWrapper(label)
-  click.echo(f'Looking for domains without {resolve} data in {label} collection...')
+  click.echo(f'Looking for domains without {type} data in {label} collection...')
   # get domains without data
   unresolved = []
   count = 0
-  if resolve == 'basic':
+  if type == 'basic':
     unresolved, count = mongo.get_unresolved(retry_evaluated, limit=limit)
-  elif resolve == 'geo':
+  elif type == 'geo':
     unresolved, count = mongo.get_unresolved_geo(retry_evaluated, limit=limit)
-  elif resolve == 'rep':
+  elif type == 'rep':
     unresolved, count = mongo.get_unresolved_rep(retry_evaluated, limit=limit)
   if count == 0:
     click.echo('Nothing to resolve')
@@ -95,17 +95,17 @@ def resolve(resolve, label, retry_evaluated, limit, sequential, yes):
   click.echo(f'Found {count} domains.')
   if sequential:
     click.echo('Will resolve sequentially. Prepare a few coffees.')
-  if resolve == 'basic':
+  if type == 'basic':
     click.echo('Will resolve DNS, RDAP, TLS, IP RDAP.\nAbout 3 minutes per 1000 empty domains, but this varies a lot.')
     if not yes:
       if not click.confirm(f'Estimating run time of {ceil(count/1000)*3} min. Resolve?', default=True):
         return
-  elif resolve == 'geo':
+  elif type == 'geo':
     click.echo('Will resolve Geo data.\nIf using an API, it may throttle us.')
     if not yes:
       if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
         return
-  elif resolve == 'rep':
+  elif type == 'rep':
     click.echo('Will resolve reputation data.\nIf using an API, it may throttle us.')
     if not yes:
       if not yes or click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
@@ -114,14 +114,14 @@ def resolve(resolve, label, retry_evaluated, limit, sequential, yes):
   if sequential:
     with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
       for domain in unresolved:
-        resolve_domain(domain, mongo, resolve, retry_evaluated)
+        resolve_domain(domain, mongo, type, retry_evaluated)
         resolving.update(1)
   else:
     with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
       with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
         terminator_thread = threading.Thread(target=terminator, args=(executor, resolving, mongo))
         terminator_thread.start()
-        futures = [executor.submit(resolve_domain, domain, mongo, resolve, retry_evaluated) for domain in unresolved]
+        futures = [executor.submit(resolve_domain, domain, mongo, type, retry_evaluated) for domain in unresolved]
         for _ in concurrent.futures.as_completed(futures):
           resolving.update(1)
         click.echo(f'Waiting for terminator... (max {Config.TERMINATOR} seconds)')
