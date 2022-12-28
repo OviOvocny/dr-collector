@@ -70,7 +70,8 @@ def get_stats(collections = ['blacklisted', 'benign']):
     for data in cursor:
       # missing data and DNS counts
       if data['dns'] is None:
-        stats['missing']['dns'] = stats['missing'].get('dns', 0) + 1
+        if data['remarks']['dns_evaluated_on'] is not None:
+          stats['missing']['dns'] = stats['missing'].get('dns', 0) + 1
       else:
         if data['dns']['MX'] and len(data['dns']['MX']) == 0:
           stats['missing']['dns.mx'] = stats['missing'].get('dns.mx', 0) + 1
@@ -82,16 +83,18 @@ def get_stats(collections = ['blacklisted', 'benign']):
         if data['dns']['NS'] and len(data['dns']['NS']) > 0:
           ns_counts.append(len(data['dns']['NS']))
       if data['rdap'] is None:
-        stats['missing']['rdap'] = stats['missing'].get('rdap', 0) + 1
+        if data['remarks']['rdap_evaluated_on'] is not None:
+          stats['missing']['rdap'] = stats['missing'].get('rdap', 0) + 1
       if data['tls'] is None:
-        stats['missing']['tls'] = stats['missing'].get('tls', 0) + 1
+        if data['remarks']['tls_evaluated_on'] is not None:
+          stats['missing']['tls'] = stats['missing'].get('tls', 0) + 1
       if data['ip_data'] is None:
         stats['missing']['ip_data'] = stats['missing'].get('ip_data', 0) + 1
       else:
         for ip in data['ip_data']:
-          if ip['geo'] is None:
+          if ip['geo'] is None and ip['remarks']['geo_evaluated_on'] is not None:
             stats['missing']['ip_data.geo'] = stats['missing'].get('ip_data.geo', 0) + 1
-          if ip['rdap'] is None:
+          if ip['rdap'] is None and ip['remarks']['rdap_evaluated_on'] is not None:
             stats['missing']['ip_data.rdap'] = stats['missing'].get('ip_data.rdap', 0) + 1
       # txt verification
       if data['dns'] and data['dns']['TXT'] and len(data['dns']['TXT']) > 0:
