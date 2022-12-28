@@ -13,7 +13,7 @@ from exceptions import *
 
 from loaders import SourceLoader, DirectLoader
 from resolvers import resolve_domain
-from stats import get_stats, print_stats, write_stats
+from stats import get_stats, print_stats, write_stats, write_coords
 
 
 @click.group()
@@ -24,14 +24,20 @@ def cli():
 @cli.command('stats', help='Show stats for multiple collections')
 @click.option('--collections', '-c', type=click.Choice(['blacklisted', 'benign']), help='Collections to show stats for', multiple=True, default=['blacklisted', 'benign'])
 @click.option('--write', '-w', is_flag=True, help='Write stats to stats.json file')
-def stats(collections, write):
+@click.option('--geo', '-g', is_flag=True, help='Write coords to csv files instead')
+def stats(collections, write, geo):
   """Show stats for multiple collections"""
   click.echo('Getting stats...')
-  stats = get_stats(collections)
-  print_stats(stats)
-  if write:
-    write_stats(stats)
-    click.echo('Stats also written to stats.json')
+  if geo:
+    for collection in collections:
+      write_coords(collection)
+      click.echo(f'Coords written to {collection}.csv')
+  else:
+    stats = get_stats(collections)
+    print_stats(stats)
+    if write:
+      write_stats(stats)
+      click.echo('Stats also written to stats.json')
 
 
 @cli.command('load', help='Load sources from file, download and store in db')

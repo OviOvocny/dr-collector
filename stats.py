@@ -209,3 +209,16 @@ def print_stats(stats):
     for key, value in stats['lex_averages'].items():
       print('    {}: {}'.format(key, value))
     print('-'*80)
+
+
+def write_coords(collection):
+  mongo = MongoWrapper(collection)
+  cursor, _ = mongo.get_resolved()
+  coords = []
+  for data in cursor:
+    if data['ip_data']:
+      for ip in data['ip_data']:
+        if ip['geo'] and ip['geo']['latitude'] and ip['geo']['longitude']:
+          coords.append(f'{ip["geo"]["longitude"]},{ip["geo"]["latitude"]}')
+  with open('{}.csv'.format(collection), 'w') as f:
+    f.write('\n'.join(coords))
