@@ -130,7 +130,9 @@ def get_stats(collections = ['blacklisted', 'benign']):
       # tls stuff
       if data['tls']:
         tls_chain_lengths.append(len(data['tls']['certificates']))
-        for cert in data['tls']['certificates']:
+        #for cert in data['tls']['certificates']:
+        cert = data['tls']['certificates'][0]
+        if not cert['is_root']:
           if cert['organization']:
             tls_authorities.append(cert['organization'])
           if cert['valid_len']:
