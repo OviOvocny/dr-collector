@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 from mongo import MongoWrapper
-from typing import TypedDict, Optional, List, Dict, Literal
+from typing import TypedDict, Optional, List, Dict, Tuple, Literal
 import math
 from statistics import median, mode, mean, multimode
 from collections import Counter
@@ -27,10 +27,10 @@ class Stats(TypedDict):
   txt_verification_present_count: int
   txt_verifications: Dict[str, int] # txt verification counts
   rdap_last_change_median: float
-  most_common_tlds: List[str]
-  most_common_registrars: List[str]
-  most_common_countries: List[str]
-  most_common_tls_authorities: List[str]
+  most_common_tlds: List[Tuple[str, int]]
+  most_common_registrars: List[Tuple[str, int]]
+  most_common_countries: List[Tuple[str, int]]
+  most_common_tls_authorities: List[Tuple[str, int]]
   average_ip_count: Optional[float]
   average_ns_count: Optional[float]
   average_tls_chain_length: Optional[float]
@@ -145,13 +145,13 @@ def get_stats(collections = ['blacklisted', 'benign']):
     if len(rdap_last_changes) > 0:
       stats['rdap_last_change_median'] = median(rdap_last_changes)
     # tlds
-    stats['most_common_tlds'] = multimode(tlds)
+    stats['most_common_tlds'] = Counter(tlds).most_common(5)
     # registrars
-    stats['most_common_registrars'] = multimode(registrars)
+    stats['most_common_registrars'] = Counter(registrars).most_common(5)
     # countries
-    stats['most_common_countries'] = multimode(countries)
+    stats['most_common_countries'] = Counter(countries).most_common(5)
     # tls authorities
-    stats['most_common_tls_authorities'] = multimode(tls_authorities)
+    stats['most_common_tls_authorities'] = Counter(tls_authorities).most_common(5)
     # ip counts
     if len(ip_counts) > 0:
       stats['average_ip_count'] = mean(ip_counts)
