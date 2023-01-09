@@ -15,7 +15,7 @@ class NERD:
     self._timeout = Config.TIMEOUT
     self._session = requests.Session()
     self._bucket_enabled = respect_bucket
-    self._bucket = 60
+    self._bucket = 200
     # add auth headers
     if Config.NERD_TOKEN:
       self._session.headers["Authorization"] = Config.NERD_TOKEN
@@ -32,7 +32,7 @@ class NERD:
     if self._bucket_enabled and self._bucket < 2: # leave one to be safe
       logger.debug("NERD bucket is empty, waiting for refill")
       time.sleep(1)
-      self._bucket += 1
+      self._bucket += 200
     try:
       r = self._session.get(f"{self._url}/{ip}/full", timeout=self._timeout)
       if self._bucket_enabled:
