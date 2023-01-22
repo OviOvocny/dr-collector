@@ -10,9 +10,18 @@ import os
 import re
 import urllib.request, urllib.error
 import zipfile
-from typing import List
+from typing import List, TypedDict, Optional
 from logger import logger
-from loaders.utils import LoaderUtils as U
+from datatypes import Domain
+from loaders.utils import LoaderUtils as U, create_getter, create_mapper
+
+class Source(TypedDict):
+  """Source data structure"""
+  url: str
+  category: str
+  category_source: str
+  getter_def: Optional[str]
+  mapper_def: Optional[str]
 
 class SourceLoader:
   """Remote data loader for the collector"""
@@ -20,7 +29,7 @@ class SourceLoader:
 
   def __init__(self, tmp_dir = "tmp"):
     self.tmp_dir = tmp_dir
-    self.sources: List[str] = []
+    self.sources: List[Source] = []
 
   def source_plain(self, filename: str):
     """Reads the file as plain text and looks for non-empty lines that are not comments"""
@@ -29,16 +38,35 @@ class SourceLoader:
         line = line.strip()
         if line.startswith(U.comment_prefixes) or len(line) == 0:
           continue
-        self.sources.append(line)
+        self.sources.append({
+          'url': line,
+          'category': 'unknown',
+          'category_source': 'this',
+          'getter_def': None,
+          'mapper_def': None
+        })
     self.sources = U.filter_non_links(self.sources)
 
-  def source_csv(self, filename: str, column: int = 0, delimiter: str = ","):
+  def source_csv(self, filename: str, **kwargs):
     """Reads the file as CSV and looks for the specified column"""
+    column = kwargs.get("column", 0)
+    delimiter = kwargs.get("delimiter", ",")
+    category_column = kwargs.get("category", -1)
+    category_source_column = kwargs.get("category_source", -1)
+    getter_def = kwargs.get("getter", -1)
+    mapper_def = kwargs.get("mapper", -1)
+    #
     with open(filename, "r") as f:
       reader = csv.reader(f, delimiter=delimiter)
       for row in reader:
-        if len(row) > column:
-          self.sources.append(row[column])
+        if len(row) > max(column, category_column, category_source_column, getter_def, mapper_def):
+          self.sources.append({
+            'url': row[column],
+            'category': row[category_column] if category_column >= 0 else 'unknown',
+            'category_source': row[category_source_column] if category_source_column >= 0 else 'this',
+            'getter_def': row[getter_def] if getter_def >= 0 else None,
+            'mapper_def': row[mapper_def] if mapper_def >= 0 else None
+          })
     self.sources = U.filter_non_links(self.sources)
 
   def source_json(self, filename: str, object_key: str, collection_key = None):
@@ -47,18 +75,19 @@ class SourceLoader:
     If collection_key is specified, it will look for the object_key in each object in that collection.
     Else, it will expect the root to be an array of objects and look for the object_key in each object.
     """
-    with open(filename, "r") as f:
-      data = json.load(f)
-      if collection_key is not None:
-        if collection_key in data:
-          for obj in data[collection_key]:
-            if object_key in obj:
-              self.sources.append(obj[object_key])
-      else:
-        for obj in data:
-          if object_key in obj:
-            self.sources.append(obj[object_key])
-    self.sources = U.filter_non_links(self.sources)
+    raise NotImplementedError("JSON source loading WIP because of categories")
+    # with open(filename, "r") as f:
+    #   data = json.load(f)
+    #   if collection_key is not None:
+    #     if collection_key in data:
+    #       for obj in data[collection_key]:
+    #         if object_key in obj:
+    #           self.sources.append(obj[object_key])
+    #   else:
+    #     for obj in data:
+    #       if object_key in obj:
+    #         self.sources.append(obj[object_key])
+    # self.sources = U.filter_non_links(self.sources)
 
   def source_count(self):
     return len(self.sources)
@@ -66,26 +95,26 @@ class SourceLoader:
   def load(self):
     """A generator that, for each source, downloads the contents and yields the domains found"""
     for source in self.sources:
-      domain_names: List[str] = []
+      domains: List[Domain] = []
       try:
-        file, info = urllib.request.urlretrieve(source, filename=None)
+        file, info = urllib.request.urlretrieve(source["url"], filename=None)
         type = info.get_content_subtype()
         if type in self.valid_sources:
           if type == "zip":
             file = self._unzip_tmp(file)
           # special edge cases
           if "urlhaus" in source:
-            domain_names = self._get_urlhaus(file)
+            domains = self._get_urlhaus(file, source)
           # other text files
           else:
-            domain_names = self._get_txt(file)
+            domains = self._get_txt(file, source)
           os.remove(file)
-          logger.debug("Loaded " + str(len(domain_names)) + " domains from " + source)
-          yield domain_names
+          logger.debug("Loaded " + str(len(domains)) + " domains from " + source["url"])
+          yield domains
       except urllib.error.HTTPError as e:
-        logger.error(str(e) + " " + source)
+        logger.error(str(e) + " " + source["url"])
       except urllib.error.URLError as e:
-        logger.error(str(e) + " " + source)
+        logger.error(str(e) + " " + source["url"])
 
   def _unzip_tmp(self, file: str):
     """Unzips the file to a temporary directory and returns the path to the unzipped file"""
@@ -93,8 +122,8 @@ class SourceLoader:
       zip_ref.extractall(self.tmp_dir)
     return self.tmp_dir + "/" + zip_ref.namelist()[0]
 
-  def _get_urlhaus(self, file: str):
-    domain_names: List[str] = []
+  def _get_urlhaus(self, file: str, source: Source):
+    domains: List[Domain] = []
     with open(file, 'r', encoding='utf-8', errors='ignore') as csvf:
       reader = csv.reader(csvf)
       URL_COL = 2 # url column in urlhaus csv
@@ -102,11 +131,17 @@ class SourceLoader:
         if len(row) > URL_COL:
           domain = re.search(U.hostname_regex, row[URL_COL])
           if domain:
-            domain_names.append(domain.group(0))
-    return domain_names
+            domains.append({
+              'name': domain.group(0),
+              'source': source["url"],
+              'category': source["category"],
+            })
+    return domains
 
-  def _get_txt(self, file: str):
-    domain_names: List[str] = []
+  def _get_txt(self, file: str, source: Source):
+    domains: List[Domain] = []
+    getter = create_getter(source)
+    mapper = create_mapper(source)
     with open(file, "r", encoding='utf-8', errors='ignore') as f:
       for line in f:
         line = line.strip()
@@ -114,5 +149,9 @@ class SourceLoader:
           continue
         domain = re.search(U.hostname_regex, line)
         if domain:
-          domain_names.append(domain.group(0))
-    return domain_names
+          domains.append({
+            'name': domain.group(0),
+            'source': source["url"],
+            'category': mapper(getter(line)),
+          })
+    return domains

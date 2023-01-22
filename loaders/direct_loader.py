@@ -7,6 +7,7 @@ __author__ = "Adam Horák"
 import re
 from typing import List
 from logger import logger
+from datatypes import Domain
 from loaders.utils import LoaderUtils as U
 
 class DirectLoader:
@@ -19,7 +20,7 @@ class DirectLoader:
 
   def load(self):
     """A generator that just yields the domains found (generator is used for consistency with other loaders)"""
-    domain_names: List[str] = []
+    domain_names: List[Domain] = []
     with open(self.source, "r", encoding='utf-8', errors='ignore') as f:
       for line in f:
         line = line.strip()
@@ -27,6 +28,10 @@ class DirectLoader:
           continue
         domain = re.search(U.hostname_regex, line)
         if domain:
-          domain_names.append(domain.group(0))
+          domain_names.append({
+            'name': domain.group(0),
+            'source': self.source,
+            'category': 'unknown',
+          })
       logger.debug("Loaded " + str(len(domain_names)) + " domains from " + self.source)
       yield domain_names

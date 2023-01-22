@@ -62,7 +62,7 @@ def load(file, label, direct, yes):
   else:
     loader = SourceLoader()
     if file_type == 'csv':
-      loader.source_csv(file, 1)
+      loader.source_csv(file, column=1, category=5, category_source=6, getter=7, mapper=8)
     elif file_type == 'plain':
       loader.source_plain(file)
     click.echo(f'Found {loader.source_count()} sources')
