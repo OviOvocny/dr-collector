@@ -1,7 +1,0 @@
-,URL blacklistu,Features (yes/no),Features,Domains count ,Description
-,https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-blocklist.txt,yes,tracker/advertising/malware,16264,Mixed
-,https://raw.githubusercontent.com/AdAway/adaway.github.io/master/hosts.txt,no,no,11000,ads
-,https://raw.githubusercontent.com/bkrcrc/turk-adlist/master/hosts,no,no,1200,ads
-,https://raw.githubusercontent.com/Yhonay/antipopads/master/hosts,o,no,754,ads
-,https://raw.githubusercontent.com/vokins/yhosts/master/hosts.txt,no,no,10000,only bad
-,https://raw.githubusercontent.com/FadeMind/hosts.extras/master/add.2o7Net/hosts,no,no,2000,ads
