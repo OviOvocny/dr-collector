@@ -144,25 +144,31 @@ def resolve(type, label, retry_evaluated, limit, sequential, yes):
         futures = [executor.submit(resolve_domain, domain, mongo, type, retry_evaluated) for domain in unresolved]
         for _ in concurrent.futures.as_completed(futures):
           resolving.update(1)
-        click.echo(f'Waiting for terminator... (max {Config.TERMINATOR} seconds)')
+        click.echo(f'Waiting for terminator... (max 10 seconds)')
         terminator_thread.join()
 
 def terminator(executor: concurrent.futures.ThreadPoolExecutor, progress: ProgressBar, mongo: MongoWrapper, timeout = None):
   _timeout = timeout if timeout else Config.TERMINATOR
+  sleeptime = 10
+  naps = _timeout // sleeptime
   last_pos = progress.pos
+  napped = 0
   while True:
-    time.sleep(_timeout)
+    time.sleep(sleeptime)
+    napped += 1
     if progress.finished:
       break
-    elif progress.pos == last_pos:
-      click.echo(f'No progress for {_timeout} seconds. Terminating...')
-      logger.debug(f'No progress for {_timeout} seconds. Run terminated.')
-      executor.shutdown(wait=False, cancel_futures=True)
-      mongo._cleanup()
-      click.echo('DB buffer flushed safely.')
-      os._exit(800)
-    else:
-      last_pos = progress.pos
+    elif napped == naps:
+      napped = 0
+      if progress.pos == last_pos:
+        click.echo(f'No progress for {_timeout} seconds. Terminating...')
+        logger.debug(f'No progress for {_timeout} seconds. Run terminated.')
+        executor.shutdown(wait=False, cancel_futures=True)
+        mongo._cleanup()
+        click.echo('DB buffer flushed safely.')
+        os._exit(800)
+      else:
+        last_pos = progress.pos
 
 if __name__ == '__main__':
   cli()
