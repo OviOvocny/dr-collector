@@ -10,18 +10,10 @@ import os
 import re
 import urllib.request, urllib.error
 import zipfile
-from typing import List, TypedDict, Optional
 from logger import logger
-from datatypes import Domain
+from typing import List
+from datatypes import Domain, Source
 from loaders.utils import LoaderUtils as U, create_getter, create_mapper
-
-class Source(TypedDict):
-  """Source data structure"""
-  url: str
-  category: str
-  category_source: str
-  getter_def: Optional[str]
-  mapper_def: Optional[str]
 
 class SourceLoader:
   """Remote data loader for the collector"""

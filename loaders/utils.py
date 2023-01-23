@@ -1,6 +1,6 @@
 import re
 from typing import Callable, List
-from source_loader import Source
+from datatypes import Source
 
 class LoaderUtils:
   comment_prefixes = ("#", ";", "//")
@@ -18,16 +18,19 @@ def create_getter(source: Source) -> Callable[[str], str]:
   if source["category_source"] == "this":
     return lambda _: source["category"]
   # if not and there's no getter definition, return a function that always returns 'unknown'
-  elif source["getter_def"] is None:
+  elif source["getter_def"] is None or source["getter_def"] == "":
     return lambda _: 'unknown'
   # otherwise, return a function that returns the category based on the getter definition
   else:
     definition = source["getter_def"]
-    # if the category is specified in a CSV column, the definition is the column number
+    # if the category is specified in a CSV column, the definition is the delimiter character and column number
     if source["category_source"] == "csv":
+      # example for delimiter semicolon and column index 21: ";21"
+      delimiter, column = definition[0], int(definition[1:])
       def csv_getter(line: str):
+        print(line)
         try:
-          return line.split(",")[int(definition)]
+          return line.split(delimiter)[column]
         except IndexError:
           return 'unknown'
       return csv_getter
@@ -35,7 +38,7 @@ def create_getter(source: Source) -> Callable[[str], str]:
     elif source["category_source"] == "txt":
       def txt_getter(line: str):
         cat = re.search(definition, line)
-        if cat and len(cat.groups()) > 1:
+        if cat and len(cat.groups()) > 0:
           return cat.group(1)
         else:
           return 'unknown'
@@ -54,15 +57,17 @@ def _rule_parser(rule: str):
 
 def create_mapper(source: Source) -> Callable[[str], str]:
   """Creates a mapper function for the specified source"""
-  if source["mapper_def"] is None:
+  if source["mapper_def"] is None or source["mapper_def"] == "":
     return lambda x: x
   else:
     definition = source["mapper_def"]
     raw_rules = definition.split(";")
-    rules = map(_rule_parser, raw_rules)
+    rules = list(map(_rule_parser, raw_rules))
     def mapper(line: str):
+      if line == 'unknown':
+        return 'unknown'
       for pattern, category in rules:
-        if re.search(pattern, line):
+        if re.search(pattern, line, re.IGNORECASE):
           return category
       return 'unknown'
     return mapper

@@ -1,5 +1,5 @@
 ,URL blacklistu,Features (yes/no),Features,Domains count ,Category,Cat. Source,Getter,Mapper
-,https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-blocklist.txt,yes,tracker/advertising/malware,"16,264",mixed,txt,-\s(.*),^Advertising$=ads;^Tracker$=ads
+,https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-blocklist.txt,yes,tracker/advertising/malware,"16,264",mixed,txt,-\s(.*),Advertising=ads;Tracker=ads
 ,https://raw.githubusercontent.com/AdAway/adaway.github.io/master/hosts.txt,no,,"11,000",ads,this,,
 ,https://raw.githubusercontent.com/bkrcrc/turk-adlist/master/hosts,no,,"1,200",ads,this,,
 ,https://raw.githubusercontent.com/Yhonay/antipopads/master/hosts,no,,754,ads,this,,
@@ -22,7 +22,7 @@
 ,https://winhelp2002.mvps.org/hosts.txt,no,,"9,900",malware,this,,
 ,https://phishing.army/download/phishing_army_blocklist_extended.txt,no,,"1,500,000",phishing,this,,
 ,https://dbl.oisd.nl/,no,,"1,034,679",unknown,this,,
-,http://benkow.cc/export.php,yes,type,"12,000",malware,csv,1,^Phishing$=phishing;.*=malware
+,http://benkow.cc/export.php,yes,type,"12,000",malware,csv,;1,Phishing=phishing;Spam=spam;.*=malware
 ,https://www.github.developerdan.com/hosts/lists/ads-and-tracking-extended.txt,no,,"429,000",ads,this,,
 ,https://github.com/anudeepND/blacklist/blob/master/adservers.txt,no,,"45,000",ads,this,,
 ,https://zenodo.org/record/3965397#.Y2ApBNLMJhE,no,,"90,000,000",DGA,this,,

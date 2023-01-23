@@ -11,6 +11,14 @@ class Domain(TypedDict):
   source: str
   category: str
 
+class Source(TypedDict):
+  """Source data structure"""
+  url: str
+  category: str
+  category_source: str
+  getter_def: Optional[str]
+  mapper_def: Optional[str]
+
 ####
 
 # DNS
