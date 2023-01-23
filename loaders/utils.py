@@ -28,7 +28,6 @@ def create_getter(source: Source) -> Callable[[str], str]:
       # example for delimiter semicolon and column index 21: ";21"
       delimiter, column = definition[0], int(definition[1:])
       def csv_getter(line: str):
-        print(line)
         try:
           return line.split(delimiter)[column]
         except IndexError:
