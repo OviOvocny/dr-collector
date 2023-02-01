@@ -108,6 +108,8 @@ def resolve(type, label, retry_evaluated, limit, sequential, yes):
     unresolved, count = mongo.get_unresolved_geo(retry_evaluated, limit=limit)
   elif type == 'rep':
     unresolved, count = mongo.get_unresolved_rep(retry_evaluated, limit=limit)
+  elif type == 'ports':
+    unresolved, count = mongo.get_unresolved_ports(retry_evaluated, limit=limit)
   if count == 0:
     click.echo('Nothing to resolve')
     return
@@ -127,6 +129,11 @@ def resolve(type, label, retry_evaluated, limit, sequential, yes):
         return
   elif type == 'rep':
     click.echo('Will resolve reputation data.\nIf using an API, it may throttle us.')
+    if not yes:
+      if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
+        return
+  elif type == 'ports':
+    click.echo('Will scan usual ports for all hosts of found domains.')
     if not yes:
       if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
         return

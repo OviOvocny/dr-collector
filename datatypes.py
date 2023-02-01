@@ -137,6 +137,10 @@ class IPRemarks(TypedDict):
   rdap_evaluated_on: Optional[datetime]
   geo_evaluated_on: Optional[datetime]
   rep_evaluated_on: Optional[datetime]
+  icmp_evaluated_on: Optional[datetime]
+  is_alive: bool # if the IP is alive (ICMP ping)
+  average_rtt: Optional[float] # average RTT of ICMP pings
+  ports_scanned_on: Optional[datetime] # when the ports were last scanned
 
 # DB data record
 class IPData(TypedDict):
@@ -146,6 +150,7 @@ class IPData(TypedDict):
   rdap: Optional[RDAPIPData]
   geo: Optional[GeoData]
   rep: Optional[Dict[str, Optional[Dict]]] # reputation data, entries will have arbitrary shape
+  ports: List[int] # list of open ports
 
 class DomainRemarks(TypedDict):
   """Remarks for finding unfinished domains"""
@@ -199,9 +204,14 @@ def empty_ip_data(ip: str) -> IPData:
     'remarks': {
       'rdap_evaluated_on': None,
       'geo_evaluated_on': None,
-      'rep_evaluated_on': None
+      'rep_evaluated_on': None,
+      'icmp_evaluated_on': None,
+      'is_alive': False,
+      'average_rtt': None,
+      'ports_scanned_on': None
     },
     'rdap': None,
     'geo': None,
-    'rep': None
+    'rep': None,
+    'ports': []
   }

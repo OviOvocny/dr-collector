@@ -2,6 +2,8 @@
 from .dns import DNS
 from .rdap import RDAP
 from .tls import TLS
+from .icmp import ICMP
+from .ports import PortScan
 
 from .geo.geoip2 import Geo as GeoIP2
 from .geo.universal_api import Geo as GeoAPI
@@ -22,7 +24,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
 
   if mode == 'basic':
     # resolve DNS if needed
-    if domain['remarks']['dns_evaluated_on'] is None or retry_evaluated:
+    if retry_evaluated or domain['remarks']['dns_evaluated_on'] is None:
       dns = DNS()
       try:
         domain['dns'], ips = dns.query(name)
@@ -42,7 +44,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
         domain['remarks']['dns_evaluated_on'] = None
 
     # resolve RDAP if needed
-    if domain['remarks']['rdap_evaluated_on'] is None or retry_evaluated:
+    if retry_evaluated or domain['remarks']['rdap_evaluated_on'] is None:
       try:
         domain['rdap'] = rdap.domain(name)
         domain['remarks']['rdap_evaluated_on'] = datetime.now()
@@ -53,7 +55,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
         domain['remarks']['rdap_evaluated_on'] = None
 
     # resolve TLS if needed
-    if domain['remarks']['tls_evaluated_on'] is None or retry_evaluated:
+    if retry_evaluated or domain['remarks']['tls_evaluated_on'] is None:
       tls = TLS()
       try:
         domain['tls'] = tls.resolve(name)
@@ -68,9 +70,11 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
       finally:
         domain['remarks']['tls_evaluated_on'] = datetime.now()
 
-    # resolve IP RDAP if needed
+    # resolve IP RDAP and alive status if needed
     if domain['ip_data'] is not None:
+      icmp = ICMP()
       for ip_data in domain['ip_data']:
+        # resolve RDAP
         if ip_data['rdap'] is None:
           try:
             ip_data['rdap'] = rdap.ip(ip_data['ip'])
@@ -80,6 +84,16 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
           except ResolutionNeedsRetry:
             ip_data['remarks']['rdap_evaluated_on'] = None
+        # resolve alive status
+        if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
+          try:
+            ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_data['ip'])
+            ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+          except ResolutionImpossible:
+            ip_data['remarks']['is_alive'] = False
+            ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+          except ResolutionNeedsRetry:
+            ip_data['remarks']['icmp_evaluated_on'] = None
 
     # mark evaluated time
     domain['evaluated_on'] = datetime.now()
@@ -88,7 +102,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
     if domain['ip_data'] is not None:
       geo = GeoIP2()
       for ip_data in domain['ip_data']:
-        if ip_data['remarks']['geo_evaluated_on'] is None or retry_evaluated:
+        if retry_evaluated or ip_data['remarks']['geo_evaluated_on'] is None:
           try:
             ip_data['geo'] = geo.single(ip_data['ip'])
             ip_data['remarks']['geo_evaluated_on'] = datetime.now()
@@ -102,7 +116,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
     if domain['ip_data'] is not None:
       nerd = NERD(respect_bucket=True) # respect bucket will not help in parallel mode!!
       for ip_data in domain['ip_data']:
-        if ip_data['remarks']['rep_evaluated_on'] is None or retry_evaluated:
+        if retry_evaluated or ip_data['remarks']['rep_evaluated_on'] is None:
           if ip_data['rep'] is None:
             ip_data['rep'] = {}
           try:
@@ -113,6 +127,14 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             ip_data['remarks']['rep_evaluated_on'] = datetime.now()
           except ResolutionNeedsRetry:
             ip_data['remarks']['rep_evaluated_on'] = None
+
+  elif mode == 'ports':
+    if domain['ip_data'] is not None:
+      scanner = PortScan()
+      for ip_data in domain['ip_data']:
+        if retry_evaluated or ip_data['remarks']['ports_scanned_on'] is None:
+          ip_data['ports'] = scanner.scan(ip_data['ip']) #TODO add option to specify ports
+          ip_data['remarks']['ports_scanned_on'] = datetime.now()
 
   # store results
   mongo.store(domain)

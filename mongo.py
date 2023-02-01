@@ -147,6 +147,12 @@ class MongoWrapper:
       query = {'$or': [{'ip_data': {'$elemMatch': {f'rep.{service}': None}}} for service in reps]}
     return self._find_query(query, limit)
 
+  def get_unresolved_ports(self, retry_evaluated = False, limit: int = 0):
+    query = {'ip_data': {'$elemMatch': {'remarks.ports_scanned_on': None}}}
+    if retry_evaluated:
+      query = {'ip_data': {'$exists': True}}
+    return self._find_query(query, limit)
+
   def get_resolved(self):
     # find records where all of the optional fields in DomainData are not None
     query = {'evaluated_on': {'$ne': None}}

@@ -5,6 +5,7 @@ futures
 dnspython
 requests
 urllib3
+icmplib
 pymongo
 geoip2
 python-dotenv
