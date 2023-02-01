@@ -1,9 +1,10 @@
 """Self-contained ping resolver for the pong collector to see if host is alive"""
 __author__ = "Adam Horák"
 
+import sys
 from typing import Tuple, List, Dict
-from icmplib import ping, multiping, Host
-from icmplib.exceptions import NameLookupError, SocketPermissionError, SocketAddressError
+from icmplib import ping, multiping
+from icmplib.exceptions import NameLookupError, SocketAddressError, SocketPermissionError
 from logger import logger
 from config import Config
 from exceptions import *
@@ -19,7 +20,10 @@ class ICMP:
     try:
       result = ping(address, count=self._count, interval=self._interval, timeout=self._timeout)
       return (result.is_alive, result.avg_rtt)
-    except (NameLookupError, SocketPermissionError, SocketAddressError) as e:
+    except SocketPermissionError:
+      print("No permission to create raw socket!", file=sys.stderr)
+      raise ResolutionNeedsRetry
+    except (NameLookupError, SocketAddressError) as e:
       logger.error("Error during ping: " + str(e))
       raise ResolutionNeedsRetry
     except:
@@ -30,7 +34,10 @@ class ICMP:
     try:
       results = multiping(addresses, count=self._count, interval=self._interval, timeout=self._timeout)
       return {result.address: (result.is_alive, result.avg_rtt) for result in results}
-    except (NameLookupError, SocketPermissionError, SocketAddressError) as e:
+    except SocketPermissionError:
+      print("No permission to create raw socket!", file=sys.stderr)
+      raise ResolutionNeedsRetry
+    except (NameLookupError, SocketAddressError) as e:
       logger.error("Error during ping: " + str(e))
       raise ResolutionNeedsRetry
     except:
