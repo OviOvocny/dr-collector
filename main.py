@@ -1,3 +1,4 @@
+import json
 import click
 from click._termui_impl import ProgressBar
 import time
@@ -12,7 +13,7 @@ from logger import logger
 from exceptions import *
 
 from loaders import SourceLoader, DirectLoader
-from resolvers import resolve_domain
+from resolvers import resolve_domain, try_domain
 from stats import get_stats, print_stats, write_stats, write_coords
 
 
@@ -176,6 +177,14 @@ def terminator(executor: concurrent.futures.ThreadPoolExecutor, progress: Progre
         os._exit(800)
       else:
         last_pos = progress.pos
+
+
+@cli.command('try', help='Resolve domain and show results')
+@click.argument('domain', type=str)
+@click.option('--with-ports', '-p', is_flag=True, help='Scan ports', default=False)
+def dry_resolve(domain, with_ports):
+  data = try_domain(domain, with_ports)
+  click.echo(json.dumps(data, indent=2, default=str))
 
 if __name__ == '__main__':
   cli()
