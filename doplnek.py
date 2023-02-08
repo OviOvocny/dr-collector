@@ -51,14 +51,15 @@ def load(file, label, direct, yes):
   total_writes = 0
   try:
     for domain_list in loader.load():
-      total_sourced += len(domain_list)
-      for domain in domain_list:
-        result = mongo._collection.update_one({'domain_name': domain['name']}, {'$set': {
-          'source': domain['source'],
-          'category': domain['category'],
-        }})
-        total_stored += result.modified_count
-    result = f'Added data to {total_stored} domains, skipped {total_sourced - total_stored} duplicates.'
+      with click.progressbar(domain_list, label='Storing domains', show_pos=True, show_percent=False) as bar:
+        for domain in bar:
+          result = mongo._collection.update_one({'domain_name': domain['name']}, {'$set': {
+            'source': domain['source'],
+            'category': domain['category'],
+          }})
+          total_stored += result.modified_count
+          bar.label = f'Storing domains ({total_stored} stored)'
+    result = f'Added data to {total_stored} domains.'
     click.echo(f'Finished: {result}')
   except ValueError as e:
     if 'unknown url type' in str(e):
