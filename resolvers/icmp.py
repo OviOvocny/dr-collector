@@ -21,7 +21,7 @@ class ICMP:
       result = ping(address, count=self._count, interval=self._interval, timeout=self._timeout)
       return (result.is_alive, result.avg_rtt)
     except SocketPermissionError:
-      print("No permission to create raw socket!", file=sys.stderr)
+      print("ICMP: No permission to create raw socket!", file=sys.stderr)
       raise ResolutionNeedsRetry
     except (NameLookupError, SocketAddressError) as e:
       logger.error("Error during ping: " + str(e))
@@ -35,7 +35,7 @@ class ICMP:
       results = multiping(addresses, count=self._count, interval=self._interval, timeout=self._timeout)
       return {result.address: (result.is_alive, result.avg_rtt) for result in results}
     except SocketPermissionError:
-      print("No permission to create raw socket!", file=sys.stderr)
+      print("ICMP: No permission to create raw socket!", file=sys.stderr)
       raise ResolutionNeedsRetry
     except (NameLookupError, SocketAddressError) as e:
       logger.error("Error during ping: " + str(e))
