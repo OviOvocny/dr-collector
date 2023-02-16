@@ -90,7 +90,7 @@ def load(file, label, direct, yes):
 
 
 @cli.command('resolve', help='Resolve domains stored in db')
-@click.option('--type', '-t', type=click.Choice(['basic', 'geo', 'rep']), help='Data to resolve', default='basic')
+@click.option('--type', '-t', type=click.Choice(['basic', 'geo', 'rep', 'ports']), help='Data to resolve', default='basic')
 @click.option('--label', '-l', type=click.Choice(['blacklisted', 'benign']), help='Label for loaded domains', default='blacklisted')
 @click.option('--retry-evaluated', '-e', is_flag=True, help='Retry resolving fields that have failed before', default=False)
 @click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
