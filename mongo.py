@@ -18,9 +18,10 @@ def chunks(l: List, n: int):
   chunk_count = ceil(len(l) / n)
   if chunk_count == 0:
     yield l
-  chunk_size = ceil(len(l) / chunk_count)
-  for i in range(0, len(l), chunk_size):
-    yield l[i:i + chunk_size]
+  else:
+    chunk_size = ceil(len(l) / chunk_count)
+    for i in range(0, len(l), chunk_size):
+      yield l[i:i + chunk_size]
 
 class MongoWrapper:
   batch_queue = []
