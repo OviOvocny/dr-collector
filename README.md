@@ -21,10 +21,11 @@ To start, create a .env file in the root directory (or add to your environment d
 ```
 DR_MONGO_URI=<mongo connection string>
 DR_NERD_TOKEN=<nerd api token if you have one>
+DR_MISP_KEY=<misp api key if you have one>
 ```
 Without the connection string, it will default to an unauthenticated local instance at `mongodb://localhost:27017/`.
 
-You can poke at **config.py** to change the database name and other defaults.
+You can poke at **config.py** to change the database name and other defaults. This is also where you configure service URLs, such as NERD and your MISP instance.
 
 ## Usage
 The interpreter invocation (ex. `python3`) will be omitted from the following examples. You can use `python` or `python3` depending on your system. Use python version 3.9 or later.
@@ -34,19 +35,31 @@ Note that commands that provide interactivity can be used with the `-y` or `--ye
 You can also get help at any point with the `--help` flag. Use it with commands to get information about the command and its arguments. Use it with the main script to get a list of available commands.
 
 ### Loading
-Start by loading domains into the database with the `load` command:
+Start by loading domains into the database with the `load` or `load-misp` command. The `load` command loads from a file or a list of sources:
 ```
-main.py load [options]
+main.py load [options] <file>
 
 Options:
-  -f, --file PATH                   File to import sources from
-  -l, --label [blacklisted|benign]  Label for loaded domains
+  -l, --label TEXT                  Label for loaded domains
   -d, --direct                      Load directly from the file
 ```
 
 You must provide a path to a file that will be read. If it's a source file (a list of domains to be loaded), use the *direct* flag to load directly from the file. Otherwise, it will be read as a list of sources to load from. Source lists are CSV files described in the *Source Lists* section.
 
 Use the *label* option to set the label for the loaded domains. If you don't provide a label, it will default to *blacklisted*. The label is also the collection name in the database.
+
+The `load-misp` command loads from a MISP instance:
+```
+main.py load-misp [options] <feed>
+
+Options:
+  -l, --label TEXT  Label for loaded domains
+```
+
+Provide the name of the MISP feed to load from. The feeds are configured in **config.py** in the *MISP_FEEDS* dictionary. The CLI will only allow feed names that are configured in the dictionary. You can also use the help flag to get a list of available choices.
+
+Use the *label* option to set the label for the loaded domains. If you don't provide a label, it will default to *blacklisted*. The label is also the collection name in the database.
+
 
 ### Resolving
 **HEADS UP**: Pinging requires root privileges, because it constructs raw sockets. If you don't have root privileges, you can proceed as normal and the pings will be skipped, but errors will be logged.
@@ -57,7 +70,7 @@ main.py resolve [options]
 
 Options:
   -t, --type [basic|geo|rep]        Data to resolve
-  -l, --label [blacklisted|benign]  Label for loaded domains
+  -l, --label TEXT                  Label for loaded domains
   -e, --retry-evaluated             Retry resolving fields that have failed before
   -n, --limit INTEGER               Limit number of domains to resolve
   -s, --sequential                  Resolve sequentially instead of in parallel
@@ -121,10 +134,7 @@ Each document also stores timestamps for when the domain was sourced and when it
 Categories can be one of *unknown*, *malware*, *phishing*, *spam*, *ads*, *cryptomining*, *dga*.
 
 ## Source Lists
-Source lists are CSV files that contain a list of sources to load from. There are several columns in the CSV file that can be used to specify the source URI and the category of malicious activity.
-
-The source loader can read plain text files, CSV files and JSON files. It can also unzip archives containing these files. The format of the source file is determined by the file extension. If the file extension is not recognized, the loader will try to read it as a plain text file.
-
+Source lists are CSV files that contain a list of sources to load from. There are several columns in the CSV file that can be used to specify the source URI and the category of malicious activity:
 - **source**: The source URI. This is the only required column.
 - **category**: The category of malicious activity that the domain is associated with. This is optional and defaults to *unknown*. Irrelevant for benign domains for example. See above for a list of available categories.
 - **category source**: This determines the source of the category. If set to *this*, the category will be taken from the *category* column. Other values (*txt* and *csv*) are used to read the category from the source itself. This is useful if the source contains the category in its data and it differs for each domain.
@@ -151,4 +161,6 @@ Since there are multiple categories, we need to set the category source to *txt*
 The getter captures everything after the dash and whitespace. The mapper maps `Mallware` to `malware` and everything else to `phishing`. As you can see, this is fairly flexible and can be used to source various lists for the categories used by the program.
 
 ### Using source lists with the source loader
+The source loader takes source files from the list and can read plain text files, CSV files and JSON files. It can also unzip archives containing these files. The format of the source file is determined by the file extension. If the file extension is not recognized, the loader will try to read it as a plain text file.
+
 To use a source list, simply provide the path to the source list file as the source URI. The source loader will then read the source list and load domains from the sources in it. Specifying indices for the above mentioned columns is not yet implemented, and the columns are hardcoded for use with the default source list. This is priority for the next update.

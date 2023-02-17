@@ -12,7 +12,7 @@ from datatypes import empty_domain_data
 from logger import logger
 from exceptions import *
 
-from loaders import SourceLoader, DirectLoader
+from loaders import SourceLoader, DirectLoader, MISPLoader
 from resolvers import resolve_domain, try_domain
 from stats import get_stats, print_stats, write_stats, write_coords
 
@@ -23,7 +23,7 @@ def cli():
 
 
 @cli.command('stats', help='Show stats for multiple collections')
-@click.option('--collections', '-c', type=click.Choice(['blacklisted', 'benign']), help='Collections to show stats for', multiple=True, default=['blacklisted', 'benign'])
+@click.option('--collections', '-c', type=str, help='Collections to show stats for', multiple=True, default=['blacklisted', 'benign'])
 @click.option('--write', '-w', is_flag=True, help='Write stats to stats.json file')
 @click.option('--geo', '-g', is_flag=True, help='Write coords to csv files instead')
 def stats(collections, write, geo):
@@ -41,13 +41,13 @@ def stats(collections, write, geo):
       click.echo('Stats also written to stats.json')
 
 
-@cli.command('load', help='Load sources from file, download and store in db')
-@click.option('--file', '-f', type=click.Path(exists=True), help='File to import sources from')
-@click.option('--label', '-l', type=click.Choice(['blacklisted', 'benign']), help='Label for loaded domains', default='blacklisted')
+@cli.command('load')
+@click.argument('file', type=click.Path(exists=True), required=True)
+@click.option('--label', '-l', type=str, help='Label for loaded domains', default='blacklisted')
 @click.option('--direct', '-d', is_flag=True, help='Load directly from the file')
 @click.option('--yes', '-y', is_flag=True, help='Don\'t interact, just start')
 def load(file, label, direct, yes):
-  """Load sources from file and store in db"""
+  """Load sources from FILE and store in db"""
   # ask user what type of file it is
   file_type = click.prompt('File type', type=click.Choice(['csv', 'plain']), default='csv')
   # confirm with user before importing
@@ -89,9 +89,30 @@ def load(file, label, direct, yes):
       click.echo(str(e), err=True)
 
 
+@cli.command('load-misp')
+@click.argument('feed', type=click.Choice(list(Config.MISP_FEEDS.keys())))
+@click.option('--label', '-l', type=str, help='Label for loaded domains', default='blacklisted')
+def load_misp(feed, label):
+  """Load domains from MISP feed defined in config and selected by FEED name"""
+  loader = MISPLoader(feed)
+  mongo = MongoWrapper(label)
+  mongo.index_by('domain_name')
+  total_sourced = 0
+  total_stored = 0
+  total_writes = 0
+  for domain_list in loader.load():
+    total_sourced += len(domain_list)
+    stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list])
+    total_stored += stored
+    total_writes += writes
+  result = f'Added {total_stored} domains in {total_writes} writes, skipped {total_sourced - total_stored} duplicates.'
+  click.echo(f'Finished: {result}')
+  logger.info(result)
+
+
 @cli.command('resolve', help='Resolve domains stored in db')
 @click.option('--type', '-t', type=click.Choice(['basic', 'geo', 'rep', 'ports']), help='Data to resolve', default='basic')
-@click.option('--label', '-l', type=click.Choice(['blacklisted', 'benign']), help='Label for loaded domains', default='blacklisted')
+@click.option('--label', '-l', type=str, help='Label for loaded domains', default='blacklisted')
 @click.option('--retry-evaluated', '-e', is_flag=True, help='Retry resolving fields that have failed before', default=False)
 @click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
 @click.option('--sequential', '-s', is_flag=True, help='Resolve domains sequentially instead of in parallel', default=False)
