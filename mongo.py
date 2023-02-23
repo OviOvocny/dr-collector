@@ -52,16 +52,16 @@ class MongoWrapper:
   def _insert(self, data: List):
     return self._collection.insert_many(data)
 
-  def _upsert(self, data: List, key: str):
-    updates = [pymongo.UpdateOne({key: d[key]}, {'$set': d}, upsert=True) for d in data]
+  def _upsert(self, data: List, key: str, skip_duplicates: bool = False):
+    updates = [pymongo.UpdateOne({key: d[key]}, {'$setOnInsert' if skip_duplicates else '$set': d}, upsert=True) for d in data]
     return self._collection.bulk_write(updates, ordered=False)
 
   def _upsert_one(self, data: dict, key: str):
     return self._collection.update_one({key: data[key]}, {'$set': data}, upsert=True)
 
-  def _flush(self, key: str):
+  def _flush(self, key: str, skip_duplicates: bool = False):
     if self.batch_queue:
-      self._upsert(self.batch_queue, key)
+      self._upsert(self.batch_queue, key, skip_duplicates)
       self.batch_queue.clear()
 
   def switch_collection(self, collection: str):
@@ -76,7 +76,7 @@ class MongoWrapper:
 
 # storing
 
-  def store(self, data: DomainData):
+  def store(self, data: DomainData, skip_duplicates: bool = False):
     """Abstracts away batch queue and collection switching, use this just as you would an single insert method"""
     # flush current batch queue if collection name changed, then switch
     if self._collection.name != data['label']:
@@ -88,17 +88,17 @@ class MongoWrapper:
     # flush if batch queue is full
     if len(self.batch_queue) >= self.batch_size:
       logger.debug("DB: Batch queue full, flushing " + str(len(self.batch_queue)) + " items")
-      self._flush(key='domain_name')
+      self._flush(key='domain_name', skip_duplicates=skip_duplicates)
 
   def bulk_store(self, data: List[DomainData]):
     """Bulk store data, no batch queue, no auto collection switching (make sure to switch_collection() first if you need to)"""
     self._upsert(data, key='domain_name')
 
-  def parallel_store(self, data: List[DomainData]):
+  def parallel_store(self, data: List[DomainData], skip_duplicates: bool = False):
     """Store data in parallel, no batch queue, no auto collection switching (make sure to switch_collection() first if you need to)"""
     with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
       click.echo(f'Preparing {len(data)} items...')
-      futures = [executor.submit(self._upsert, chunk, 'domain_name') for chunk in chunks(data, Config.MONGO_BATCH_SIZE)]
+      futures = [executor.submit(self._upsert, chunk, 'domain_name', skip_duplicates) for chunk in chunks(data, Config.MONGO_BATCH_SIZE)]
       stored = 0
       with click.progressbar(length=len(futures), show_pos=True, show_percent=True, label="Writes") as loading:
         for future in concurrent.futures.as_completed(futures):

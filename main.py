@@ -76,7 +76,7 @@ def load(file, label, direct, yes):
   try:
     for domain_list in loader.load():
       total_sourced += len(domain_list)
-      stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list])
+      stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list], skip_duplicates=True)
       total_stored += stored
       total_writes += writes
     result = f'Added {total_stored} domains in {total_writes} writes, skipped {total_sourced - total_stored} duplicates.'
@@ -102,7 +102,7 @@ def load_misp(feed, label):
   total_writes = 0
   for domain_list in loader.load():
     total_sourced += len(domain_list)
-    stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list])
+    stored, writes = mongo.parallel_store([empty_domain_data(domain, label) for domain in domain_list], skip_duplicates=True)
     total_stored += stored
     total_writes += writes
   result = f'Added {total_stored} domains in {total_writes} writes, skipped {total_sourced - total_stored} duplicates.'
