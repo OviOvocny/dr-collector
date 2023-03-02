@@ -18,7 +18,7 @@ class RDAP:
   def domain(self, domain: str, **kwargs) -> Optional[RDAPDomainData]:
     try:
       return whoisit.domain(domain, **kwargs)
-    except whoisit.errors.ResourceDoesNotExist:
+    except:
       # TODO: fallback to whois
       logger.warning(f'RDAP domain object {domain} does not exist, falling back to whois')
       try:
@@ -52,7 +52,9 @@ class RDAP:
         hostmask=str(ipdata['network'].hostmask)
       )
       return RDAPIPData(**ipdata)
-    except whoisit.errors.ResourceDoesNotExist:
+    except whoisit.errors.RateLimitedError:
+      raise ResolutionNeedsRetry
+    except:
       raise ResolutionImpossible
 
   def asn(self, asn: int, **kwargs) -> Optional[RDAPASNData]:
@@ -78,7 +80,7 @@ def load_bootstrap_data():
   try:
     with open('data/rdap_bootstrap.json', 'r') as f:
       bootstrap_data = json.load(f)
-      whoisit.load_bootstrap_data(bootstrap_data)
+      whoisit.load_bootstrap_data(bootstrap_data, overrides=True)
       logger.debug('Loaded bootstrap data from file')
       if whoisit.bootstrap_is_older_than(3):
         logger.warning('Bootstrap data is older than 3 days, bootstrapping...')
