@@ -110,7 +110,7 @@ class CertificateExtension(TypedDict):
   """X.509 Certificate extension structure"""
   critical: bool
   name: str
-  value: str
+  value: Optional[str]
 
 class Certificate(TypedDict):
   """Certificate structure"""

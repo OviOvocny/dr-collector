@@ -101,10 +101,14 @@ class TLS:
     extensions: List[CertificateExtension] = []
     for i in range(cert.get_extension_count()):
       ext = cert.get_extension(i)
+      try:
+        val = str(ext)
+      except:
+        val = None
       extensions.append({
         "critical": ext.get_critical(),
         "name": ext.get_short_name().decode("utf-8"),
-        "value": str(ext)
+        "value": val
       })
     
     return Certificate(
@@ -131,10 +135,13 @@ class TLS:
   def resolve(self, host: str, port: int = 443, timeout: int = Config.TIMEOUT):
     """Resolve TLS data from host:port"""
     self.timeout = timeout
-    data = self._download(host, port)
-    return None if data is None else TLSData(
-        cipher = data["cipher_name"],
-        count = data["chain_len"],
-        protocol = data["protocol"],
-        certificates = self._parse_chain(data["cert_chain"])
-      )
+    try:
+      data = self._download(host, port)
+      return None if data is None else TLSData(
+          cipher = data["cipher_name"],
+          count = data["chain_len"],
+          protocol = data["protocol"],
+          certificates = self._parse_chain(data["cert_chain"])
+        )
+    except:
+      raise ResolutionImpossible

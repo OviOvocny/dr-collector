@@ -42,15 +42,18 @@ class RDAP:
 
   def ip(self, ip: str, **kwargs) -> Optional[RDAPIPData]:
     # raises ResourceDoesNotExist if not found
-    ipdata = whoisit.ip(ip, **kwargs)
-    ipdata['network'] = IPNetwork(
-      prefix_length=ipdata['network'].prefixlen,
-      network_address=str(ipdata['network'].network_address),
-      netmask=str(ipdata['network'].netmask),
-      broadcast_address=str(ipdata['network'].broadcast_address),
-      hostmask=str(ipdata['network'].hostmask)
-    )
-    return RDAPIPData(**ipdata)
+    try:
+      ipdata = whoisit.ip(ip, **kwargs)
+      ipdata['network'] = IPNetwork(
+        prefix_length=ipdata['network'].prefixlen,
+        network_address=str(ipdata['network'].network_address),
+        netmask=str(ipdata['network'].netmask),
+        broadcast_address=str(ipdata['network'].broadcast_address),
+        hostmask=str(ipdata['network'].hostmask)
+      )
+      return RDAPIPData(**ipdata)
+    except whoisit.errors.ResourceDoesNotExist:
+      raise ResolutionImpossible
 
   def asn(self, asn: int, **kwargs) -> Optional[RDAPASNData]:
     # raises exc if not found
