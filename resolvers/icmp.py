@@ -10,7 +10,7 @@ from config import Config
 from exceptions import *
 
 class ICMP:
-  def __init__(self, count = 4, interval = 1, timeout = Config.TIMEOUT):
+  def __init__(self, count = 1, interval = 1, timeout = Config.TIMEOUT):
     self._count = count
     self._interval = interval
     self._timeout = timeout
