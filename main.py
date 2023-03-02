@@ -49,7 +49,10 @@ def stats(collections, write, geo):
 def load(file, label, direct, yes):
   """Load sources from FILE and store in db"""
   # ask user what type of file it is
-  file_type = click.prompt('File type', type=click.Choice(['csv', 'plain']), default='csv')
+  if yes:
+    file_type = 'csv'
+  else:
+    file_type = click.prompt('File type', type=click.Choice(['csv', 'plain']), default='csv')
   # confirm with user before importing
   if not yes:
     if not click.confirm(f'Load domain list(s) from {file} into {label} collection?', default=True):
