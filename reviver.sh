@@ -2,5 +2,5 @@
 
 while true 
   do 
-    $@ && return 
+    $@ && exit 
   done
