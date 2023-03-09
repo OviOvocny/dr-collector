@@ -16,6 +16,10 @@ from datatypes import DomainData, empty_ip_data, empty_domain_data
 from mongo import MongoWrapper
 from datetime import datetime
 
+# some stuff for dry run
+import re
+from loaders.utils import LoaderUtils as U
+
 def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated = False):
   """Resolve domain basic info and store results in db"""
   name = domain['domain_name']
@@ -153,14 +157,21 @@ def try_domain(domain: str, scan_ports = False) -> DomainData:
   nerd = NERD()
   scanner = PortScan()
   # init domain data
+  domain_name = re.search(U.hostname_regex, domain)
+  if not domain_name:
+    print('Invalid domain name')
+    exit(1)
+  #
+  name = domain_name.group(0)
   domain_data = empty_domain_data({
-    'name': domain,
+    'name': name,
+    'url': domain,
     'source': 'try_domain',
     'category': 'try_domain'
   }, 'test')
   # resolve DNS
   try:
-    dns_data, ips = dns.query(domain)
+    dns_data, ips = dns.query(name)
     domain_data['dns'] = dns_data
     domain_data['remarks']['dns_evaluated_on'] = datetime.now()
     if ips is None:
@@ -179,7 +190,7 @@ def try_domain(domain: str, scan_ports = False) -> DomainData:
     domain_data['remarks']['dns_had_no_ips'] = False
   # resolve RDAP
   try:
-    domain_data['rdap'] = rdap.domain(domain)
+    domain_data['rdap'] = rdap.domain(name)
     domain_data['remarks']['rdap_evaluated_on'] = datetime.now()
   except ResolutionImpossible:
     domain_data['rdap'] = None
@@ -188,7 +199,7 @@ def try_domain(domain: str, scan_ports = False) -> DomainData:
     domain_data['remarks']['rdap_evaluated_on'] = None
   # resolve TLS
   try:
-    domain_data['tls'] = tls.resolve(domain)
+    domain_data['tls'] = tls.resolve(name)
     domain_data['remarks']['tls_evaluated_on'] = datetime.now()
   except ResolutionImpossible:
     domain_data['tls'] = None

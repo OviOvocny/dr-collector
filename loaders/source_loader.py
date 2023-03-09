@@ -125,6 +125,7 @@ class SourceLoader:
           if domain:
             domains.append({
               'name': domain.group(0),
+              'url': row[URL_COL],
               'source': source["url"],
               'category': source["category"],
             })
@@ -143,6 +144,7 @@ class SourceLoader:
         if domain:
           domains.append({
             'name': domain.group(0),
+            'url': line,
             'source': source["url"],
             'category': mapper(getter(line)),
           })

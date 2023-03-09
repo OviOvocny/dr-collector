@@ -10,6 +10,9 @@ from datatypes import Domain
 from config import Config
 from pymisp import ExpandedPyMISP # type: ignore - linter is confused
 
+import re
+from loaders.utils import LoaderUtils as U
+
 class MISPLoader:
   """Local file data loader for the collector"""
   valid_sources = ("plain", "octet-stream", "html", "csv")
@@ -29,10 +32,13 @@ class MISPLoader:
     for i in event:
       if i == 'Attribute':
         for j in event[i]:
-          domain_names.append({
-            'name': j.value,
-            'source': self.source,
-            'category': self.category,
-          })
+          domain = re.search(U.hostname_regex, j.value)
+          if domain:
+            domain_names.append({
+              'name': domain.group(0),
+              'url': j.value,
+              'source': self.source,
+              'category': self.category,
+            })
     logger.debug("Loaded " + str(len(domain_names)) + " domains from MISP feed " + self.source)
     yield domain_names

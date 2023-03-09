@@ -30,6 +30,7 @@ class DirectLoader:
         if domain:
           domain_names.append({
             'name': domain.group(0),
+            'url': line,
             'source': self.source,
             'category': 'unknown',
           })

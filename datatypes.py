@@ -8,6 +8,7 @@ from datetime import datetime
 class Domain(TypedDict):
   """Domain data structure for loaders"""
   name: str
+  url: Optional[str]
   source: str
   category: str
 
@@ -164,6 +165,7 @@ class DomainRemarks(TypedDict):
 class DomainData(TypedDict):
   """Single domain main data structure (goes into DB)"""
   domain_name: str
+  url: Optional[str] # url of the domain (if available)
   label: str # blacklisted/benign as originally sourced, also mongo collection name
   source: str # source of the domain (uri of the list, etc.)
   category: str # category of the domain (malware, phishing, etc.)
@@ -180,6 +182,7 @@ def empty_domain_data(domain: Domain, label: str) -> DomainData:
   """Returns an empty DomainData structure"""
   return {
     'domain_name': domain['name'],
+    'url': domain['url'] if 'url' in domain else None,
     'label': label,
     'source': domain['source'],
     'category': domain['category'],
