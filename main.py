@@ -9,7 +9,7 @@ from math import ceil
 from config import Config
 from mongo import MongoWrapper
 from datatypes import empty_domain_data
-from logger import logger
+from logger import logger, logger_thread
 from exceptions import *
 
 from loaders import SourceLoader, DirectLoader, MISPLoader
@@ -174,7 +174,15 @@ def resolve(type, label, retry_evaluated, limit, sequential, yes):
         terminator_thread = threading.Thread(target=terminator, args=(executor, resolving, mongo))
         terminator_thread.start()
         futures = [executor.submit(resolve_domain, domain, mongo, type, retry_evaluated) for domain in unresolved]
-        for _ in concurrent.futures.as_completed(futures):
+        for completed in concurrent.futures.as_completed(futures):
+          # check for errors
+          try:
+            completed.result()
+          except TimeoutError:
+            logger_thread.error('Timeout error in resolving thread')
+          except Exception:
+            logger_thread.exception('Exception in resolving thread')
+          # update progress bar
           resolving.update(1)
         click.echo(f'Waiting for terminator... (max 10 seconds)')
         terminator_thread.join()
