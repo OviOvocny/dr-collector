@@ -1,4 +1,5 @@
 """TLS resolver with X.509 extension reader"""
+__author__      = "Jan Polišenský"
 __author__      = "Adam Horák"
 
 import socket
