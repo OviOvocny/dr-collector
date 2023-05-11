@@ -23,7 +23,7 @@ def cli():
 
 
 @cli.command('stats', help='Show stats for multiple collections')
-@click.option('--collections', '-c', type=str, help='Collections to show stats for', multiple=True, default=['blacklisted', 'benign'])
+@click.option('--collections', '-c', type=str, help='Collections to show stats for', multiple=True, default=['misp', 'benign'])
 @click.option('--write', '-w', is_flag=True, help='Write stats to stats.json file')
 @click.option('--geo', '-g', is_flag=True, help='Write coords to csv files instead')
 def stats(collections, write, geo):
@@ -43,7 +43,7 @@ def stats(collections, write, geo):
 
 @cli.command('load')
 @click.argument('file', type=click.Path(exists=True), required=True)
-@click.option('--label', '-l', type=str, help='Label for loaded domains', default='blacklisted')
+@click.option('--label', '-l', type=str, help='Label for loaded domains', default='benign')
 @click.option('--direct', '-d', is_flag=True, help='Load directly from the file')
 @click.option('--yes', '-y', is_flag=True, help='Don\'t interact, just start')
 def load(file, label, direct, yes):
@@ -94,7 +94,7 @@ def load(file, label, direct, yes):
 
 @cli.command('load-misp')
 @click.argument('feed', type=click.Choice(list(Config.MISP_FEEDS.keys())))
-@click.option('--label', '-l', type=str, help='Label for loaded domains', default='blacklisted')
+@click.option('--label', '-l', type=str, help='Label for loaded domains', default='misp')
 def load_misp(feed, label):
   """Load domains from MISP feed defined in config and selected by FEED name"""
   loader = MISPLoader(feed)
@@ -115,7 +115,7 @@ def load_misp(feed, label):
 
 @cli.command('resolve', help='Resolve domains stored in db')
 @click.option('--type', '-t', type=click.Choice(['basic', 'geo', 'rep', 'ports']), help='Data to resolve', default='basic')
-@click.option('--label', '-l', type=str, help='Label for loaded domains', default='blacklisted')
+@click.option('--label', '-l', type=str, help='Label for loaded domains', default='benign')
 @click.option('--retry-evaluated', '-e', is_flag=True, help='Retry resolving fields that have failed before', default=False)
 @click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
 @click.option('--sequential', '-s', is_flag=True, help='Resolve domains sequentially instead of in parallel', default=False)

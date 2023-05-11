@@ -27,6 +27,8 @@ Without the connection string, it will default to an unauthenticated local insta
 
 You can poke at **config.py** to change the database name and other defaults. This is also where you configure service URLs, such as NERD and your MISP instance.
 
+Note that to use GeoIP, you need to download the GeoLite2 databases from MaxMind and place them in the **data/geolite** directory.
+
 ## Usage
 The interpreter invocation (ex. `python3`) will be omitted from the following examples. You can use `python` or `python3` depending on your system. Use python version 3.9 or later.
 
@@ -35,7 +37,11 @@ Note that commands that provide interactivity can be used with the `-y` or `--ye
 You can also get help at any point with the `--help` flag. Use it with commands to get information about the command and its arguments. Use it with the main script to get a list of available commands.
 
 ### Loading
-Start by loading domains into the database with the `load` or `load-misp` command. The `load` command loads from a file or a list of sources:
+Start by loading domains into the database with the `load` or `load-misp` command. When loading domains, provide a label (such as *benign* or *malign*) to categorize the domains. This label will be used as the collection name in the database. 
+
+Loaded domain's records will have the __label__, source, timestamps, and a __category__, which is either automatically inferred from the source or MISP feed configuration or set to *unknown*. The category is meant to distinguish between different types of domains, such as *malware* or *phishing*.
+
+The `load` command loads from a file or a list of sources:
 ```
 main.py load [options] <file>
 
@@ -46,7 +52,7 @@ Options:
 
 You must provide a path to a file that will be read. If it's a source file (a list of domains to be loaded), use the *direct* flag to load directly from the file. Otherwise, it will be read as a list of sources to load from. Source lists are CSV files described in the *Source Lists* section.
 
-Use the *label* option to set the label for the loaded domains. If you don't provide a label, it will default to *blacklisted*. The label is also the collection name in the database.
+Use the *label* option to set the label for the loaded domains. If you don't provide a label, it will default to *benign*. The label is also the collection name in the database. Category will be *unknown* if loading directly from a source file.
 
 The `load-misp` command loads from a MISP instance:
 ```
@@ -58,10 +64,13 @@ Options:
 
 Provide the name of the MISP feed to load from. The feeds are configured in **config.py** in the *MISP_FEEDS* dictionary. The CLI will only allow feed names that are configured in the dictionary. You can also use the help flag to get a list of available choices.
 
-Use the *label* option to set the label for the loaded domains. If you don't provide a label, it will default to *blacklisted*. The label is also the collection name in the database.
+The feeds dictionary defines the available options (feed names) as keys and the values are a tuple of the feed ID from MISP and the category the feed belongs to, such as *phishing*.
+
+Use the *label* option to set the label for the loaded domains. If you don't provide a label, it will default to *misp*. The label is also the collection name in the database.
 
 
 ### Resolving
+
 **HEADS UP**: Pinging requires root privileges, because it constructs raw sockets. If you don't have root privileges, you can proceed as normal and the pings will be skipped, but errors will be logged.
 
 To resolve domains in the database, use the `resolve` command:
@@ -69,7 +78,7 @@ To resolve domains in the database, use the `resolve` command:
 main.py resolve [options]
 
 Options:
-  -t, --type [basic|geo|rep]        Data to resolve
+  -t, --type [basic|geo|rep|ports]  Data to resolve
   -l, --label TEXT                  Label for loaded domains
   -e, --retry-evaluated             Retry resolving fields that have failed before
   -n, --limit INTEGER               Limit number of domains to resolve
@@ -82,7 +91,7 @@ Use the *type* option to specify the type of data to resolve. The default is *ba
 - **rep**: Resolves reputation data for IPs (NERD only for now).
 - **ports**: Performs port scan for IPs. This is slow and not recommended. Ports are currently hardcoded.
 
-Use the *label* option to specify the label of the domains to resolve. If you don't provide a label, it will default to *blacklisted*. The label is also the collection name in the database.
+Use the *label* option to specify the label of the domains to resolve. If you don't provide a label, it will default to *benign*. The label is also the collection name in the database.
 
 Use the *retry-evaluated* flag to retry resolving fields that have failed before. Failed means that the resolution for that field could not be completed for some reason deemed unrecoverable. This is useful if you want to retry resolving those.
 
@@ -101,11 +110,11 @@ Options:
   -g, --geo                       Write coords to csv files instead
 ```
 
-Use the *collections* option to specify the collections to show stats for. If you don't provide a list of collections, it will default to *blacklisted* and *benign*.
+Use the *collections* option to specify the collections to show stats for. If you don't provide a list of collections, it will default to *misp* and *benign*. Specify multiple collections by repeating the option, such as `-c misp -c benign`.
 
-Without the *write* flag, the stats will be printed to the console. Use the *write* flag to write the stats to a JSON file named *stats.json* in the root directory.
+Without the *write* flag, the stats will be printed to the console. Use the *write* flag to write the stats to a JSON file named *stats.json* in the root directory. Note that this is different from redirecting the output to a file. The JSON file will contain the stats in a JSON object, while redirecting the output will write the stats in a human-readable format.
 
-The *geo* flag is used to get coordinates of all IPs in the database and write them to CSV files. The CSV files will be named after the collection they belong to. You can use these files to visualize the data on a map.
+The *geo* flag is used to get coordinates of all IPs in the collections and write them to CSV files. The CSV files will be named `coords_{collection}` after the collection they belong to. You can use these files to visualize the data on a map.
 
 ### Dry Resolve
 To try out resolving a single domain and print the results, use the `try` command:
@@ -134,14 +143,14 @@ Each document also stores timestamps for when the domain was sourced and when it
 Categories can be one of *unknown*, *malware*, *phishing*, *spam*, *ads*, *cryptomining*, *dga*.
 
 ## Source Lists
-Source lists are CSV files that contain a list of sources to load from. There are several columns in the CSV file that can be used to specify the source URI and the category of malicious activity:
+Source lists are CSV files that contain a list of sources to load from. See the `data/Blacklists.csv` file for an example. There are several columns in the CSV file that can be used to specify the source URI and the category of malicious activity:
 - **source**: The source URI. This is the only required column.
 - **category**: The category of malicious activity that the domain is associated with. This is optional and defaults to *unknown*. Irrelevant for benign domains for example. See above for a list of available categories.
-- **category source**: This determines the source of the category. If set to *this*, the category will be taken from the *category* column. Other values (*txt* and *csv*) are used to read the category from the source itself. This is useful if the source contains the category in its data and it differs for each domain.
+- **category source**: This determines the source of the category. If set to the value *this*, the category will be taken from the *category* column. Other values (*txt* and *csv*) are used to read the category from the source itself. This is useful if the source contains the category in its data and it differs for each domain.
 
 There are two more columns that are used when the category source is set to *txt* or *csv*. These modes read the source as plain text or CSV respectively and use the category from the source itself. These two columns are used to specify how to read the category from the source. They are:
 - **getter**: The getter specifies how to get the category from the source.
-  - for plain text sources, the getter is a regular expression that is matched against the current line in the source. The first group in the regex is used as the category.
+  - for plain text sources, the getter is a regular expression that is matched against the current line in the source. The first capture group in the regex is used as the category.
   - for CSV sources, the getter specifies the delimiter and column number to get the category from. The format is *delimiter* immediately followed by *column*. For example, `;2` will use semicolon as the delimiter and find the column with index 2.
 - **mapper**: The mapper is used to map the category from the source to the categories used by the program. It's a list of mappings in the format *regex*=*category* separated by semicolons. The first mapping that matches the category from the source is used. If no mapping matches, the category is set to *unknown*.
 

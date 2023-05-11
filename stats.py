@@ -225,5 +225,5 @@ def write_coords(collection):
       for ip in data['ip_data']:
         if ip['geo'] and ip['geo']['latitude'] and ip['geo']['longitude']:
           coords.append(f'{ip["geo"]["longitude"]},{ip["geo"]["latitude"]}')
-  with open('{}.csv'.format(collection), 'w') as f:
+  with open('coords_{}.csv'.format(collection), 'w') as f:
     f.write('\n'.join(coords))
