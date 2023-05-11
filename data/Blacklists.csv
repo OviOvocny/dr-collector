@@ -1,4 +1,4 @@
-,URL blacklistu,Features (yes/no),Features,Domains count ,Category,Cat. Source,Getter,Mapper
+,URL,Has Features,Features,Domain count,Category,Cat. Source,Getter,Mapper
 ,https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-blocklist.txt,yes,tracker/advertising/malware,"16,264",mixed,txt,-\s(.*),Advertising=ads;Tracker=ads
 ,https://raw.githubusercontent.com/AdAway/adaway.github.io/master/hosts.txt,no,,"11,000",ads,this,,
 ,https://raw.githubusercontent.com/bkrcrc/turk-adlist/master/hosts,no,,"1,200",ads,this,,
@@ -26,18 +26,3 @@
 ,https://www.github.developerdan.com/hosts/lists/ads-and-tracking-extended.txt,no,,"429,000",ads,this,,
 ,https://github.com/anudeepND/blacklist/blob/master/adservers.txt,no,,"45,000",ads,this,,
 ,https://zenodo.org/record/3965397#.Y2ApBNLMJhE,no,,"90,000,000",DGA,this,,
-,,,,,,,,
-,,,,,,,,
-,,,,,,,,
-,,,,,,,,
-,,,,,,,,
-,,,,,,,,
-,,,,,,,,
-,,,,,,,,
-,,,With types,"28,264",,,,
-,,,DGA,"3,500,000",up to 90M,,,
-,,,ADS,"583,170",,,,
-,,,MALWARE,"2,527,957",,,,
-,,,Phishing,"1,500,000",,,,
-,,,Unknown,"1,044,679",,,,
-,,,TOTAL,"9,184,070",,,,
