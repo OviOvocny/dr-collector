@@ -40,3 +40,29 @@ class DNS:
       return self._dns.resolve(domain, 'AAAA' if ip6 else 'A', lifetime=Config.TIMEOUT)
     except:
       return None
+    
+    
+  # Missing modules for collector from Poli
+  def get_asn(self, domain: str):
+    ip = self.get_ip(domain)
+    
+    if ip is None:
+      return None
+    try:
+      asn_number = subprocess.check_output(["whois", "-h", "whois.cymru.com", " -v " + ip]).decode("utf-8").split("\n")[1].split("|")[0].strip()
+      return asn_number
+    except:
+      return None
+      
+    
+  def get_ttl(self, domain: str):
+    ip = self.get_ip(domain)
+    
+    if ip is None:
+      return None
+    
+    try:
+      ttl = subprocess.check_output(["dig", "+noall", "+answer", "+ttlid", domain]).decode("utf-8").split("\n")[1].split("\t")[1].strip()
+      return ttl
+    except:
+      return None

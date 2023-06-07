@@ -9,6 +9,7 @@ from logger import logger
 from datatypes import RDAPDomainData, RDAPIPData, RDAPASNData, RDAPEntityData, IPNetwork
 from exceptions import *
 from typing import Optional
+import rdap
 
 class RDAP:
   def __init__(self):
@@ -56,6 +57,17 @@ class RDAP:
       raise ResolutionNeedsRetry
     except:
       raise ResolutionImpossible
+    
+  # Fixed RDAP data without whois module
+  def retrieve_rdap_data(domain):
+    try:
+      result = rdap.get(domain)
+      return result
+    except rdap.RdapError as e:
+      print(f"Error retrieving RDAP data: {e}")
+      return None
+    
+    
 
   def asn(self, asn: int, **kwargs) -> Optional[RDAPASNData]:
     # raises exc if not found
