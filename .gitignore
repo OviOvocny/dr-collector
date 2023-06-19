@@ -129,7 +129,10 @@ dmypy.json
 .pyre/
 data/rdap_bootstrap.json
 data/geolite/COPYRIGHT.txt
-data/geolite/GeoLite2-City.mmdb
+data/geolite/*.mmdb
 data/geolite/LICENSE.txt
 data/geolite/README.txt
 stats.json
+
+# JetBrains PyCharm
+.idea/
