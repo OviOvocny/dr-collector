@@ -34,10 +34,10 @@ class MongoWrapper:
         try:
             client = pymongo.MongoClient(Config.MONGO_URI)
             client.server_info()
-        except BaseException:
-            logger.error("DB: Connection to MongoDB failed, check your connection settings")
-            print("Connection to MongoDB failed, check your connection settings. Exiting...")
-            sys.exit(1)
+        except Exception as e:
+          logger.error("DB: Connection to MongoDB failed, check your connection settings", exc_info=e)
+          print("Connection to MongoDB failed, check your connection settings. Exiting...")
+          sys.exit(1)
 
     def __init__(self, collection: str, batch_size: int = Config.MONGO_BATCH_SIZE):
         self._client = pymongo.MongoClient(Config.MONGO_URI)

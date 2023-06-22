@@ -39,8 +39,8 @@ class RDAP:
             except whois.exceptions.WhoisPrivateRegistry:
                 logger.error(f'Whois private registry for {domain}')
                 raise ResolutionImpossible
-            except BaseException:
-                logger.error(f'Whois query for {domain} failed')
+            except Exception as e:
+                logger.error(f'Whois query for {domain} failed', exc_info=e)
                 raise ResolutionImpossible
 
     def ip(self, ip: str, **kwargs) -> Optional[RDAPIPData]:
