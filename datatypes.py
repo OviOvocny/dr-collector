@@ -1,9 +1,8 @@
 """Nested typed dicts defining the shape of the data the collector creates"""
 __author__ = "Adam Horák"
 
-
 from datetime import datetime
-from typing import List, Dict, TypedDict, Optional
+from typing import List, Dict, TypedDict, Optional, Union
 
 
 class Domain(TypedDict):
@@ -22,24 +21,88 @@ class Source(TypedDict):
     getter_def: Optional[str]
     mapper_def: Optional[str]
 
+
 ####
 
 # DNS
+class IPRecord(TypedDict):
+    ttl: int
+    value: str
+
+
+class CNAMERecord(TypedDict):
+    value: str
+    related_ips: Optional[List[IPRecord]]
+
+
+class MXRecord(TypedDict):
+    priority: int
+    related_ips: Optional[List[IPRecord]]
+
+
+class NSRecord(TypedDict):
+    related_ips: Optional[List[IPRecord]]
+
+
+class SOARecord(TypedDict):
+    primary_ns: str
+    resp_mailbox_dname: str
+    serial: str
+    refresh: int
+    retry: int
+    expire: int
+    min_ttl: int
+
+
+class RecordsIntMetadata(TypedDict):
+    A: int
+    AAAA: int
+    CNAME: int
+    MX: int
+    NS: int
+    SOA: int
+    TXT: int
+
+
+class DNSSECMetadata(RecordsIntMetadata):
+    pass
+
+
+class RecordSourceMetadata(RecordsIntMetadata):
+    pass
+
+
+class TTLMetadata(RecordsIntMetadata):
+    pass
+
+
+class DNSDataRemarks(TypedDict):
+    has_spf: bool
+    has_dkim: bool
+    has_dmarc: bool
+    has_dnskey: bool
+    zone_dnskey_selfsign_ok: bool
+    zone: str
 
 
 class DNSData(TypedDict):
     """DNS data structure"""
+
+    dnssec: DNSSECMetadata
+    remarks: DNSDataRemarks
+    sources: RecordSourceMetadata
+    ttls: TTLMetadata
+
+    SOA: Optional[SOARecord]
+    NS: Optional[Dict[str, NSRecord]]
     A: Optional[List[str]]
     AAAA: Optional[List[str]]
-    CNAME: Optional[List[str]]
-    MX: Optional[List[str]]
-    NS: Optional[List[str]]
-    SOA: Optional[List[str]]
+    CNAME: Optional[CNAMERecord]
+    MX: Optional[Dict[str, MXRecord]]
     TXT: Optional[List[str]]
 
+
 # Geo
-
-
 class GeoData(TypedDict):
     """Geolocation data structure"""
     country: Optional[str]
@@ -55,6 +118,7 @@ class GeoData(TypedDict):
     as_org: Optional[str]
     isp: Optional[str]
     org: Optional[str]
+
 
 # RDAP
 
@@ -121,6 +185,7 @@ class RDAPEntityData(RDAPBaseData):
     an entity explicitly)"""
     email: str
 
+
 # TLS
 
 
@@ -162,6 +227,7 @@ class IPRemarks(TypedDict):
     is_alive: bool  # if the IP is alive (ICMP ping)
     average_rtt: Optional[float]  # average RTT of ICMP pings
     ports_scanned_on: Optional[datetime]  # when the ports were last scanned
+
 
 # DB data record
 
