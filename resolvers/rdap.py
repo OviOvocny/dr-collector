@@ -5,7 +5,7 @@ __author__ = "Adam Horák"
 import re
 import whoisit
 import whoisit.errors
-import whois
+import whoisdomain as whois
 import json
 from logger import logger
 from datatypes import RDAPDomainData, RDAPIPData, RDAPASNData, RDAPEntityData, IPNetwork
