@@ -10,7 +10,7 @@ from dns.rdtypes.ANY.SOA import SOA
 from dns.name import Name
 from dns.rrset import RRset
 from config import Config
-from datatypes import DNSData, IPRecord, SOARecord, CNAMERecord, MXRecord, NSRecord
+from datatypes import DNSData, IPRecord, SOARecord, CNAMERecord, MXRecord, NSRecord, IPFromDNS
 from logger import logger
 
 
@@ -34,7 +34,7 @@ class DNS:
 
     # query domain for all record types in record_types
     def query(self, domain_name: str, a=True, aaaa=True, soa=True, cname=True, mx=True, ns=True, txt=True,
-              other_types=('NAPTR',)) -> Tuple[DNSData, Set[str]]:
+              other_types=('NAPTR',)) -> Tuple[DNSData, Set[IPFromDNS]]:
         domain = dns.name.from_text(domain_name)
 
         # Determine the start of authority domain name and the primary nameserver domain name
@@ -91,7 +91,7 @@ class DNS:
                                   min_ttl=soa_rec.minimum)
 
     def _resolve_a_or_aaaa(self, domain: Name, record_type: Literal['A', 'AAAA'],
-                           primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData, ips: Set[str]):
+                           primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData, ips: Set[IPFromDNS]):
         """Resolves an A or AAAA record set for a given domain name and populates a result object."""
         data = self._resolve_record_base(domain, record_type, primary_ns, dnskey, result)
         if data is None:
@@ -100,10 +100,10 @@ class DNS:
         result[record_type] = []
         for a_record in data:  # type: dns.rdtypes.IN.A.A
             result[record_type].append(a_record.address)
-            ips.add(a_record.address)
+            ips.add(IPFromDNS(a_record.address, record_type))
 
     def _resolve_cname(self, domain: Name, primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData,
-                       ips: Set[str]):
+                       ips: Set[IPFromDNS]):
         """Resolves a CNAME record for a given domain name and populates a result object."""
         data = self._resolve_record_base(domain, 'CNAME', primary_ns, dnskey, result)
         if data is None:
@@ -116,11 +116,11 @@ class DNS:
         related_ips = self._find_ip_data(value)
         result['CNAME'] = CNAMERecord(value=value.to_text(True), related_ips=related_ips)
         for related_ip in related_ips:
-            ips.add(related_ip['value'])
+            ips.add(IPFromDNS(related_ip['value'], 'CNAME'))
 
     def _resolve_mx(self, domain: Name, primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData,
-                    ips: Set[str]):
-        """Resolves a MX record set for a given domain name and populates a result object."""
+                    ips: Set[IPFromDNS]):
+        """Resolves an MX record set for a given domain name and populates a result object."""
         data = self._resolve_record_base(domain, 'MX', primary_ns, dnskey, result)
         if data is None:
             return
@@ -131,10 +131,10 @@ class DNS:
             result['MX'][mx_record.exchange.to_text(True)] = MXRecord(priority=mx_record.preference,
                                                                       related_ips=related_ips)
             for related_ip in related_ips:
-                ips.add(related_ip['value'])
+                ips.add(IPFromDNS(related_ip['value'], 'MX'))
 
     def _resolve_ns(self, domain: Name, primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData,
-                    ips: Set[str]):
+                    ips: Set[IPFromDNS]):
         """Resolves a NS record set for a given domain name and populates a result object."""
         data = self._resolve_record_base(domain, 'NS', primary_ns, dnskey, result)
         if data is None:
@@ -145,7 +145,7 @@ class DNS:
             related_ips = self._find_ip_data(ns_record.target)
             result['NS'][ns_record.target.to_text(True)] = NSRecord(related_ips=related_ips)
             for related_ip in related_ips:
-                ips.add(related_ip['value'])
+                ips.add(IPFromDNS(related_ip['value'], 'NS'))
 
     def _resolve_txt(self, domain: Name, primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData):
         """

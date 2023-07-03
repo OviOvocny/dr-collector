@@ -90,7 +90,7 @@ def load_bootstrap_data():
             if whoisit.bootstrap_is_older_than(3):
                 logger.warning('Bootstrap data is older than 3 days, bootstrapping...')
                 bootstrap()
-    except BaseException:
+    except IOError:
         bootstrap()
 
 # WHOIS fallback helpers

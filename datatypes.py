@@ -1,6 +1,7 @@
 """Nested typed dicts defining the shape of the data the collector creates"""
 __author__ = "Adam Horák"
 
+from collections import namedtuple
 from datetime import datetime
 from typing import List, Dict, TypedDict, Optional, Union
 
@@ -28,6 +29,9 @@ class Source(TypedDict):
 class IPRecord(TypedDict):
     ttl: int
     value: str
+
+
+IPFromDNS = namedtuple('IPFromDNS', ['ip', 'source_record_type'])
 
 
 class CNAMERecord(TypedDict):
@@ -235,6 +239,7 @@ class IPRemarks(TypedDict):
 class IPData(TypedDict):
     """Single IP data structure used in the domain structure"""
     ip: str
+    from_record: str
     remarks: IPRemarks
     rdap: Optional[RDAPIPData]
     geo: Optional[GeoData]
@@ -292,10 +297,11 @@ def empty_domain_data(domain: Domain, label: str) -> DomainData:
     }
 
 
-def empty_ip_data(ip: str) -> IPData:
+def empty_ip_data(ip: IPFromDNS) -> IPData:
     """Returns an empty IPData structure"""
     return {
-        'ip': ip,
+        'ip': ip.ip,
+        'from_record': ip.source_record_type,
         'remarks': {
             'rdap_evaluated_on': None,
             'geo_evaluated_on': None,
