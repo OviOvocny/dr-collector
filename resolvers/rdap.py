@@ -3,10 +3,14 @@ whois if needed"""
 __author__ = "Adam Horák"
 
 import re
+
+import dns.name
 import whoisit
-import whoisit.errors
+from whoisit.errors import BootstrapError
 import whoisdomain as whois
 import json
+
+import timing
 from logger import logger
 from datatypes import RDAPDomainData, RDAPIPData, RDAPASNData, RDAPEntityData, IPNetwork
 from exceptions import *
@@ -18,31 +22,72 @@ class RDAP:
         if not whoisit.is_bootstrapped():
             load_bootstrap_data()
 
+    @timing.time_exec
     def domain(self, domain: str, **kwargs) -> Optional[RDAPDomainData]:
-        try:
-            return whoisit.domain(domain, **kwargs)
-        except BaseException:
-            # TODO: fallback to whois
-            logger.warning(f'RDAP domain object {domain} does not exist, falling back to whois')
-            try:
-                w = whois.query(domain)
-                if w is None:
-                    logger.warning(f'Whois empty for {domain}')
-                    return None
-                return whois_to_rdap_domain(w)
-            except whois.exceptions.WhoisQuotaExceeded:
-                logger.critical(f'Whois quota exceeded! (at {domain})')
-                raise ResolutionNeedsRetry
-            except whois.exceptions.UnknownTld:
-                logger.error(f'Unknown TLD for {domain}')
-                raise ResolutionImpossible
-            except whois.exceptions.WhoisPrivateRegistry:
-                logger.error(f'Whois private registry for {domain}')
-                raise ResolutionImpossible
-            except Exception as e:
-                logger.error(f'Whois query for {domain} failed', exc_info=e)
-                raise ResolutionImpossible
+        original_domain = domain
 
+        def worker(current_domain):
+            try:
+                logger.debug(f"Querying RDAP for {current_domain}")
+                return whoisit.domain(current_domain, **kwargs)
+            except whoisit.errors.UnsupportedError:
+                logger.warning(f"No RDAP endpoint for {current_domain}")
+            except whoisit.errors.RateLimitedError:
+                logger.warning(f"RDAP rate limited for {current_domain}")
+            except whoisit.errors.ResourceDoesNotExist:
+                logger.warning(f"RDAP resource doesn't exist: {current_domain}")
+            except Exception as e:
+                logger.error(f'RDAP error for {current_domain}', exc_info=e)
+
+            err = ResolutionImpossible()
+            try:
+                return self._query_whois(current_domain)
+            except (ResolutionNeedsRetry, ResolutionImpossible) as e:
+                err = e
+
+            dn = dns.name.from_text(current_domain)
+            if len(dn) <= 3:
+                raise err
+
+            more_general_name = dn.split(len(dn) - 1)[1]
+            to_try = more_general_name.to_text(True)
+
+            logger.info(f"Trying more general name {more_general_name} for {original_domain}")
+
+            return worker(to_try)
+
+        return worker(domain)
+
+    @staticmethod
+    def _query_whois(domain: str) -> Optional[RDAPDomainData]:
+        try:
+            logger.info(f'Trying whois fallback for {domain}')
+            w = whois.query(domain)
+            if w is not None:
+                return whois_to_rdap_domain(w)
+        except whois.exceptions.WhoisQuotaExceeded:
+            logger.error(f'Whois quota exceeded (at {domain})')
+            raise ResolutionNeedsRetry
+        except whois.exceptions.UnknownTld:
+            logger.warning(f'Unknown TLD for {domain}')
+            raise ResolutionImpossible
+        except whois.exceptions.WhoisPrivateRegistry:
+            logger.warning(f'Whois private registry for {domain}')
+            raise ResolutionImpossible
+        except (whois.exceptions.WhoisCommandTimeout, whois.exceptions.WhoisCommandFailed):
+            logger.warning(f'Whois timeout/fail for {domain}')
+            raise ResolutionNeedsRetry
+        except whois.exceptions.FailedParsingWhoisOutput:
+            logger.warning(f'Invalid whois output for {domain}')
+            raise ResolutionImpossible
+        except Exception as e:
+            logger.error(f'Whois query for {domain} failed', exc_info=e)
+            raise ResolutionImpossible
+        
+        logger.warning(f'Whois empty for {domain}')
+        raise ResolutionNeedsRetry
+
+    @timing.time_exec
     def ip(self, ip: str, **kwargs) -> Optional[RDAPIPData]:
         # raises ResourceDoesNotExist if not found
         try:
@@ -59,14 +104,6 @@ class RDAP:
             raise ResolutionNeedsRetry
         except BaseException:
             raise ResolutionImpossible
-
-    def asn(self, asn: int, **kwargs) -> Optional[RDAPASNData]:
-        # raises exc if not found
-        return whoisit.asn(asn, **kwargs)
-
-    def entity(self, entity: str, **kwargs) -> Optional[RDAPEntityData]:
-        # raises exc if not found
-        return whoisit.entity(entity, **kwargs)
 
 
 def save_bootstrap_data():
@@ -86,12 +123,15 @@ def load_bootstrap_data():
         with open('data/rdap_bootstrap.json', 'r') as f:
             bootstrap_data = json.load(f)
             whoisit.load_bootstrap_data(bootstrap_data, overrides=True)
-            logger.debug('Loaded bootstrap data from file')
+            logger.info('Loaded RDAP bootstrap data from file')
             if whoisit.bootstrap_is_older_than(3):
-                logger.warning('Bootstrap data is older than 3 days, bootstrapping...')
+                logger.info('Bootstrap data is older than 3 days, bootstrapping...')
                 bootstrap()
     except IOError:
         bootstrap()
+    except BootstrapError:
+        logger.warning('Multiple bootstrap requests (concurrency issue)')
+
 
 # WHOIS fallback helpers
 
