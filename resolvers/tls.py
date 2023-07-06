@@ -1,4 +1,5 @@
 """TLS resolver with X.509 extension reader"""
+import timing
 from exceptions import *
 from datatypes import TLSData, Certificate, CertificateExtension
 from typing import List
@@ -42,7 +43,7 @@ class TLS:
             result["protocol"] = sock.get_protocol_version_name()
             result["cert_chain"] = chain
         except socket.gaierror as e:
-            logger.error(f"{host} TLS: Cant resolve domain name or connection error", exc_info=e)
+            logger.error(f"{host} TLS: cannot resolve domain name or connection error: {str(e)}")
             raise ResolutionImpossible
         except socket.timeout:
             logger.error(f"{host} TLS: socket timeout")
@@ -131,6 +132,7 @@ class TLS:
         return result
 
     #
+    @timing.time_exec
     def resolve(self, host: str, port: int = 443, timeout: int = Config.TIMEOUT):
         """Resolve TLS data from host:port"""
         self.timeout = timeout

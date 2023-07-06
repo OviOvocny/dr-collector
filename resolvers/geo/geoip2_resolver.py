@@ -1,3 +1,4 @@
+import timing
 from datatypes import GeoData
 from typing import List
 import geoip2.database
@@ -22,8 +23,6 @@ def default_mapper(data: geoip2.models.City) -> GeoData:
         "latitude": data.location.latitude,
         "longitude": data.location.longitude,
         "timezone": data.location.time_zone,
-        "asn": None,
-        "as_org": None,
         "isp": data.traits.isp,
         "org": data.traits.organization
     }
@@ -36,6 +35,7 @@ class Geo:
     def __del__(self):
         self._reader.close()
 
+    @timing.time_exec
     def query(self, ips: List[str]) -> List[GeoData]:
         """Query the API for geolocation data for a list of IPs"""
         result = []

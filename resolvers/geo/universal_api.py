@@ -16,9 +16,6 @@ def default_mapper(data: dict) -> GeoData:
     Default mapping function for geolocation data from ip-api.com
     Takes the API response and maps the fields to a GeoData object
     """
-    asys: Union[str, None] = data.get("as", None)
-    asn = int(asys.split(" ")[0][2:]) if asys else None
-    as_org = asys.split(" ", 1)[1] if asys else None
     return {
         "country": data.get("country", None),
         "country_code": data.get("countryCode", None),
@@ -29,8 +26,6 @@ def default_mapper(data: dict) -> GeoData:
         "latitude": data.get("lat", 0),
         "longitude": data.get("lon", 0),
         "timezone": data.get("timezone", None),
-        "asn": asn,
-        "as_org": as_org,
         "isp": data.get("isp", None),
         "org": data.get("org", None)
     }

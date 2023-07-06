@@ -7,7 +7,7 @@ from typing import List
 from logger import logger
 from datatypes import Domain
 from config import Config
-from pymisp import ExpandedPyMISP  # type: ignore - linter is confused
+from pymisp import ExpandedPyMISP  # type: ignore # linter is confused
 
 import re
 from loaders.utils import LoaderUtils as U
@@ -41,5 +41,5 @@ class MISPLoader:
                             'source': self.source,
                             'category': self.category,
                         })
-        logger.debug("Loaded " + str(len(domain_names)) + " domains from MISP feed " + self.source)
+        logger.info("Loaded " + str(len(domain_names)) + " domains from MISP feed " + self.source)
         yield domain_names

@@ -7,7 +7,9 @@ class Config:
     TIMEOUT = 3
     TERMINATOR = 10 * 60
     DNS_SERVERS = ['193.17.47.1', '185.43.135.1']
+    DNS_RECORD_TYPES = ('A', 'AAAA', 'SOA', 'CNAME', 'MX', 'NS', 'TXT', 'NAPTR')
     MAX_WORKERS = None
+    ENABLE_TIMING = True
     # MongoDB
     MONGO_URI = getenv('DR_MONGO_URI', 'mongodb://localhost:27017/')
     MONGO_DB = 'drdb'

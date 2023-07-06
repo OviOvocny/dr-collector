@@ -35,9 +35,9 @@ class MongoWrapper:
             client = pymongo.MongoClient(Config.MONGO_URI)
             client.server_info()
         except Exception as e:
-          logger.error("DB: Connection to MongoDB failed, check your connection settings", exc_info=e)
-          print("Connection to MongoDB failed, check your connection settings. Exiting...")
-          sys.exit(1)
+            logger.error("DB: Connection to MongoDB failed, check your connection settings", exc_info=e)
+            print("Connection to MongoDB failed, check your connection settings. Exiting...")
+            sys.exit(1)
 
     def __init__(self, collection: str, batch_size: int = Config.MONGO_BATCH_SIZE):
         self._client = pymongo.MongoClient(Config.MONGO_URI)
@@ -90,7 +90,7 @@ class MongoWrapper:
     def update_one(self, filter: dict, data: dict):
         return self._collection.update_one(filter, data)
 
-# storing
+    # storing
 
     def store(self, data: DomainData, skip_duplicates: bool = False):
         """Abstracts away batch queue and collection switching, use this just as you would an single insert method"""
@@ -134,7 +134,7 @@ class MongoWrapper:
     def set_geo(self, domain_name: str, ip: str, data: GeoData):
         return self._collection.update_one({'domain_name': domain_name}, {'$set': {f'ip_data.{ip}.geo': data}})
 
-# retrieving
+    # retrieving
 
     def get_all(self, names_only=False):
         if names_only:
@@ -147,50 +147,59 @@ class MongoWrapper:
         count = db_count if limit == 0 else min(limit, db_count)
         return self._collection.find(query, limit=limit, batch_size=Config.MONGO_BATCH_SIZE), count
 
-    def get_unresolved(self, retry_evaluated=False, limit: int = 0):
-        query = {'$or': [{'remarks.rdap_evaluated_on': None},
-                         {'ip_data': {'$elemMatch': {'remarks.rdap_evaluated_on': None}}},
-                         {'remarks.tls_evaluated_on': None},
-                         {'remarks.dns_evaluated_on': None}]}
-        if retry_evaluated:
-            query = {
-                '$or': [
-                    {
-                        'rdap': None}, {
-                        'ip_data': None}, {
-                        'ip_data': {
-                            '$elemMatch': {
-                                'rdap': None}}}, {
-                        'tls': None}, {
-                                    'dns': None}]}
+    def get_unresolved(self, retry_evaluated=False, force=False, limit: int = 0):
+        if force:
+            query = {}
+        elif retry_evaluated:
+            query = {'$or': [{'rdap': None},
+                             {'ip_data': None},
+                             {'ip_data': {'$elemMatch': {'rdap': None}}},
+                             {'ip_data': {'$elemMatch': {'asn': None}}},
+                             {'tls': None},
+                             {'dns': None}]}
+        else:
+            query = {'$or': [{'remarks.rdap_evaluated_on': None},
+                             {'ip_data': {'$elemMatch': {'remarks.rdap_evaluated_on': None}}},
+                             {'ip_data': {'$elemMatch': {'remarks.asn_evaluated_on': None}}},
+                             {'remarks.tls_evaluated_on': None},
+                             {'remarks.dns_evaluated_on': None}]}
         return self._find_query(query, limit)
 
-    def get_unresolved_geo(self, retry_evaluated=False, limit: int = 0):
-        query = {'ip_data': {'$elemMatch': {'remarks.geo_evaluated_on': None}}}
-        if retry_evaluated:
+    def get_unresolved_geo(self, retry_evaluated=False, force=False, limit: int = 0):
+        if force:
+            query = {}
+        elif retry_evaluated:
             query = {'ip_data': {'$elemMatch': {'geo': None}}}
+        else:
+            query = {'ip_data': {'$elemMatch': {'remarks.geo_evaluated_on': None}}}
         return self._find_query(query, limit)
 
-    def get_unresolved_rep(self, retry_evaluated=False, limit: int = 0):
+    def get_unresolved_rep(self, retry_evaluated=False, force=False, limit: int = 0):
         # find records where at least one IP is missing rep data, limit to limit
         reps = ['nerd']
-        query = {'ip_data': {'$elemMatch': {'remarks.rep_evaluated_on': None}}}
-        if retry_evaluated:
+        if force:
+            query = {}
+        elif retry_evaluated:
             query = {'$or': [{'ip_data': {'$elemMatch': {f'rep.{service}': None}}} for service in reps]}
+        else:
+            query = {'ip_data': {'$elemMatch': {'remarks.rep_evaluated_on': None}}}
         return self._find_query(query, limit)
 
-    def get_unresolved_ports(self, retry_evaluated=False, limit: int = 0):
-        query = {'ip_data': {'$elemMatch': {'remarks.ports_scanned_on': None}}}
-        if retry_evaluated:
+    def get_unresolved_ports(self, retry_evaluated=False, force=False, limit: int = 0):
+        if force:
+            query = {}
+        elif retry_evaluated:
             query = {'ip_data': {'$exists': True}}
+        else:
+            query = {'ip_data': {'$elemMatch': {'remarks.ports_scanned_on': None}}}
         return self._find_query(query, limit)
 
     def get_resolved(self):
-        # find records where all of the optional fields in DomainData are not None
+        # find records where all the optional fields in DomainData are not None
         query = {'evaluated_on': {'$ne': None}}
         return self._find_query(query)
 
     def get_names_with_missing(self, fields: List[str]):
-        # find names for which all of the specified fields are None
+        # find names for which all the specified fields are None
         return [d['domain_name'] for d in self._collection.find(
             {'$and': [{f: None} for f in fields]}, {'domain_name': 1})]

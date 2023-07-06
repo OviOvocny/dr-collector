@@ -103,7 +103,7 @@ class SourceLoader:
                     else:
                         domains = self._get_txt(file, source)
                     os.remove(file)
-                    logger.debug("Loaded " + str(len(domains)) + " domains from " + source["url"])
+                    logger.info("Loaded " + str(len(domains)) + " domains from " + source["url"])
                     yield domains
             except urllib.error.HTTPError as e:
                 logger.error(str(e) + " " + source["url"])

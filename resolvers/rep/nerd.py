@@ -5,6 +5,7 @@ import time
 
 import requests
 
+import timing
 from config import Config
 from exceptions import *
 from logger import logger
@@ -28,6 +29,7 @@ class NERD:
     def __del__(self):
         self._session.close()
 
+    @timing.time_exec
     def resolve(self, ip):
         # bucket handling is DUMB for now and doesn't take into account the time it takes to resolve
         # this also means WAIT before launching again as the bucket counter is reset on each launch (duh)

@@ -7,6 +7,7 @@ from math import ceil
 
 import click
 
+import timing
 from config import Config
 from datatypes import empty_domain_data
 from loaders import SourceLoader, DirectLoader, MISPLoader
@@ -80,7 +81,7 @@ def load(file, label, direct, yes):
         for domain_list in loader.load():
             total_sourced += len(domain_list)
             stored, writes = mongo.parallel_store([empty_domain_data(domain, label)
-                                                  for domain in domain_list], skip_duplicates=True)
+                                                   for domain in domain_list], skip_duplicates=True)
             total_stored += stored
             total_writes += writes
         result = f'Added {total_stored} domains in {total_writes} writes, skipped {total_sourced - total_stored} ' \
@@ -108,7 +109,7 @@ def load_misp(feed, label):
     for domain_list in loader.load():
         total_sourced += len(domain_list)
         stored, writes = mongo.parallel_store([empty_domain_data(domain, label)
-                                              for domain in domain_list], skip_duplicates=True)
+                                               for domain in domain_list], skip_duplicates=True)
         total_stored += stored
         total_writes += writes
     result = f'Added {total_stored} domains in {total_writes} writes, skipped {total_sourced - total_stored} ' \
@@ -119,15 +120,18 @@ def load_misp(feed, label):
 
 @cli.command('resolve', help='Resolve domains stored in db')
 @click.option('--type', '-t', 'resolver_type', type=click.Choice(['basic', 'geo',
-              'rep', 'ports']), help='Data to resolve', default='basic')
+                                                                  'rep', 'ports']), help='Data to resolve',
+              default='basic')
 @click.option('--label', '-l', type=str, help='Label for loaded domains', default='benign')
 @click.option('--retry-evaluated', '-e', is_flag=True,
               help='Retry resolving fields that have failed before', default=False)
+@click.option('--force', '-f', is_flag=True,
+              help='Force resolving on domains that have already been resolved', default=False)
 @click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
 @click.option('--sequential', '-s', is_flag=True,
               help='Resolve domains sequentially instead of in parallel', default=False)
 @click.option('--yes', '-y', is_flag=True, help='Don\'t interact, just start')
-def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes):
+def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes, force):
     """Resolve domains stored in db"""
     mongo = MongoWrapper(label)
     click.echo(f'Looking for domains without {resolver_type} data in {label} collection...')
@@ -135,13 +139,13 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes):
     unresolved = []
     count = 0
     if resolver_type == 'basic':
-        unresolved, count = mongo.get_unresolved(retry_evaluated, limit=limit)
+        unresolved, count = mongo.get_unresolved(retry_evaluated, force, limit=limit)
     elif resolver_type == 'geo':
-        unresolved, count = mongo.get_unresolved_geo(retry_evaluated, limit=limit)
+        unresolved, count = mongo.get_unresolved_geo(retry_evaluated, force, limit=limit)
     elif resolver_type == 'rep':
-        unresolved, count = mongo.get_unresolved_rep(retry_evaluated, limit=limit)
+        unresolved, count = mongo.get_unresolved_rep(retry_evaluated, force, limit=limit)
     elif resolver_type == 'ports':
-        unresolved, count = mongo.get_unresolved_ports(retry_evaluated, limit=limit)
+        unresolved, count = mongo.get_unresolved_ports(retry_evaluated, force, limit=limit)
     if count == 0:
         click.echo('Nothing to resolve')
         return
@@ -153,7 +157,7 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes):
         click.echo('Will resolve DNS, RDAP, TLS, IP RDAP.\nAbout 3 minutes per 1000 empty domains, but this varies '
                    'a lot.')
         if not yes:
-            if not click.confirm(f'Estimating run time of {ceil(count/1000)*3} min. Resolve?', default=True):
+            if not click.confirm(f'Estimating run time of {ceil(count / 1000) * 3} min. Resolve?', default=True):
                 return
     elif resolver_type == 'geo':
         click.echo('Will resolve Geo data.\nIf using an API, it may throttle us.')
@@ -170,18 +174,23 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes):
         if not yes:
             if not click.confirm(f'Estimating run time of potentially a lot. Resolve?', default=True):
                 return
+
+    if Config.ENABLE_TIMING:
+        timing.enable_timing()
+
     # resolve domains
     if sequential:
         with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
             for domain in unresolved:
-                resolve_domain(domain, mongo, resolver_type, retry_evaluated)
+                resolve_domain(domain, mongo, resolver_type, retry_evaluated or force)
                 resolving.update(1)
+        timing.dump()
     else:
         with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
             with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
                 terminator_thread = threading.Thread(target=terminator, args=(executor, resolving, mongo))
                 terminator_thread.start()
-                futures = [executor.submit(resolve_domain, domain, mongo, resolver_type, retry_evaluated)
+                futures = [executor.submit(resolve_domain, domain, mongo, resolver_type, retry_evaluated or force)
                            for domain in unresolved]
                 for completed in concurrent.futures.as_completed(futures):
                     # check for errors
@@ -193,7 +202,8 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes):
                         logger_thread.exception('Exception in resolving thread')
                     # update progress bar
                     resolving.update(1)
-                click.echo(f'Waiting for terminator... (max 10 seconds)')
+                timing.dump()
+                click.echo(f'\nWaiting for terminator... (max 10 seconds)')
                 terminator_thread.join()
 
 

@@ -5,6 +5,8 @@ import sys
 from typing import Tuple, List, Dict
 from icmplib import ping, multiping
 from icmplib.exceptions import NameLookupError, SocketAddressError, SocketPermissionError
+
+import timing
 from logger import logger
 from config import Config
 from exceptions import *
@@ -16,6 +18,7 @@ class ICMP:
         self._interval = interval
         self._timeout = timeout
 
+    @timing.time_exec
     def ping(self, address: str) -> Tuple[bool, float]:
         """Ping a single host and return (is_alive, avg_rtt)"""
         try:
@@ -30,6 +33,7 @@ class ICMP:
         except BaseException:
             raise ResolutionImpossible
 
+    @timing.time_exec
     def ping_list(self, addresses: List[str]) -> Dict[str, Tuple[bool, float]]:
         """Ping a list of hosts and return a {address: (is_alive, avg_rtt)} dict"""
         try:

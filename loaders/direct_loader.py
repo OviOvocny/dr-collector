@@ -36,5 +36,5 @@ class DirectLoader:
                         'source': self.source,
                         'category': 'unknown',
                     })
-            logger.debug("Loaded " + str(len(domain_names)) + " domains from " + self.source)
+            logger.info("Loaded " + str(len(domain_names)) + " domains from " + self.source)
             yield domain_names

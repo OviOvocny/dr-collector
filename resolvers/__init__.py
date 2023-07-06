@@ -1,4 +1,6 @@
 # import all resolvers
+import timing
+from .asn import ASN
 from .dns import DNS
 from .rdap import RDAP
 from .tls import TLS
@@ -21,6 +23,7 @@ import re
 from loaders.utils import LoaderUtils as U
 
 
+@timing.time_exec
 def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated=False):
     """Resolve domain basic info and store results in db"""
     name = domain['domain_name']
@@ -78,6 +81,8 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
         # resolve IP RDAP and alive status if needed
         if domain['ip_data'] is not None:
             icmp = ICMP()
+            asn = ASN()
+
             for ip_data in domain['ip_data']:
                 # resolve RDAP
                 if ip_data['rdap'] is None:
@@ -90,15 +95,26 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                     except ResolutionNeedsRetry:
                         ip_data['remarks']['rdap_evaluated_on'] = None
                 # resolve alive status
-                if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
+                # if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
+                #     try:
+                #         ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_data['ip'])
+                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                #     except ResolutionImpossible:
+                #         ip_data['remarks']['is_alive'] = False
+                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                #     except ResolutionNeedsRetry:
+                #         ip_data['remarks']['icmp_evaluated_on'] = None
+                # resolve ASN information
+                if retry_evaluated or 'asn_evaluated_on' not in ip_data['remarks'] or \
+                        ip_data['remarks']['asn_evaluated_on'] is None:
                     try:
-                        ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_data['ip'])
-                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                        ip_data['asn'] = asn.single(ip_data['ip'])
+                        ip_data['remarks']['asn_evaluated_on'] = datetime.now()
                     except ResolutionImpossible:
-                        ip_data['remarks']['is_alive'] = False
-                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                        ip_data['asn'] = None
+                        ip_data['remarks']['asn_evaluated_on'] = datetime.now()
                     except ResolutionNeedsRetry:
-                        ip_data['remarks']['icmp_evaluated_on'] = None
+                        ip_data['remarks']['asn_evaluated_on'] = None
 
         # mark evaluated time
         domain['evaluated_on'] = datetime.now()
@@ -145,11 +161,13 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
     mongo.store(domain)
 
 
+@timing.time_exec
 def try_domain(domain: str, scan_ports=False) -> DomainData:
     """Resolve domain without storing results."""
     # init all resolvers
     dns = DNS()
     rdap = RDAP()
+    asn = ASN()
     tls = TLS()
     icmp = ICMP()
     geo = GeoIP2()
@@ -218,6 +236,15 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
                 ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 ip_data['remarks']['icmp_evaluated_on'] = None
+            # resolve ASN information
+            try:
+                ip_data['asn'] = asn.single(ip_data['ip'])
+                ip_data['remarks']['asn_evaluated_on'] = datetime.now()
+            except ResolutionImpossible:
+                ip_data['asn'] = None
+                ip_data['remarks']['asn_evaluated_on'] = datetime.now()
+            except ResolutionNeedsRetry:
+                ip_data['remarks']['asn_evaluated_on'] = None
             # resolve geo
             try:
                 ip_data['geo'] = geo.single(ip_data['ip'])

@@ -124,9 +124,15 @@ class GeoData(TypedDict):
     org: Optional[str]
 
 
+# ASN
+class ASNData(TypedDict):
+    asn: Optional[int]
+    as_org: Optional[str]
+    network_address: Optional[str]
+    prefix_len: Optional[int]
+
+
 # RDAP
-
-
 class RDAPEntity(TypedDict, total=False):
     """RDAP entity structure (used in the entities list, not a specific query result)"""
     email: str
@@ -225,6 +231,7 @@ class IPRemarks(TypedDict):
     """Remarks for finding unfinished IPs"""
     # dates of last FINISHED evaluation (either OK or not worth retrying)
     rdap_evaluated_on: Optional[datetime]
+    asn_evaluated_on: Optional[datetime]
     geo_evaluated_on: Optional[datetime]
     rep_evaluated_on: Optional[datetime]
     icmp_evaluated_on: Optional[datetime]
@@ -242,6 +249,7 @@ class IPData(TypedDict):
     from_record: str
     remarks: IPRemarks
     rdap: Optional[RDAPIPData]
+    asn: Optional[ASNData]
     geo: Optional[GeoData]
     rep: Optional[Dict[str, Optional[Dict]]]  # reputation data, entries will have arbitrary shape
     ports: List[int]  # list of open ports
@@ -304,6 +312,7 @@ def empty_ip_data(ip: IPFromDNS) -> IPData:
         'from_record': ip.source_record_type,
         'remarks': {
             'rdap_evaluated_on': None,
+            'asn_evaluated_on': None,
             'geo_evaluated_on': None,
             'rep_evaluated_on': None,
             'icmp_evaluated_on': None,
@@ -312,6 +321,7 @@ def empty_ip_data(ip: IPFromDNS) -> IPData:
             'ports_scanned_on': None
         },
         'rdap': None,
+        'asn': None,
         'geo': None,
         'rep': None,
         'ports': []

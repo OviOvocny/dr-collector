@@ -9,6 +9,8 @@ from dns.message import Message
 from dns.rdtypes.ANY.SOA import SOA
 from dns.name import Name
 from dns.rrset import RRset
+
+import timing
 from config import Config
 from datatypes import DNSData, IPRecord, SOARecord, CNAMERecord, MXRecord, NSRecord, IPFromDNS
 from logger import logger
@@ -23,6 +25,7 @@ class DNS:
     NO_DNS_KEY = 3
     FROM_PRIMARY_NS = 0
     FROM_RESOLVER = 1
+    _basic_types = ('A', 'AAAA', 'SOA', 'CNAME', 'MX', 'NS', 'TXT')
 
     def __init__(self):
         self._dns = dns.resolver.Resolver()
@@ -33,9 +36,11 @@ class DNS:
         self._udp_sock.setblocking(False)
 
     # query domain for all record types in record_types
-    def query(self, domain_name: str, a=True, aaaa=True, soa=True, cname=True, mx=True, ns=True, txt=True,
-              other_types=('NAPTR',)) -> Tuple[DNSData, Set[IPFromDNS]]:
+    @timing.time_exec
+    def query(self, domain_name: str, types: Optional[Tuple[str]] = None) -> Tuple[DNSData, Set[IPFromDNS]]:
         domain = dns.name.from_text(domain_name)
+        if types is None:
+            types = Config.DNS_RECORD_TYPES
 
         # Determine the start of authority domain name and the primary nameserver domain name
         authority_dn, primary_ns_dn = self._find_primary_ns(domain)
@@ -56,23 +61,24 @@ class DNS:
         ret['remarks']['zone'] = authority_dn.to_text(True)
         ret_ips = set()
 
-        if a:
+        if 'A' in types:
             self._resolve_a_or_aaaa(domain, 'A', primary_ns_ips, dnskey_rrset, ret, ret_ips)
-        if aaaa:
+        if 'AAAA' in types:
             self._resolve_a_or_aaaa(domain, 'AAAA', primary_ns_ips, dnskey_rrset, ret, ret_ips)
-        if soa:
+        if 'SOA' in types:
             self._resolve_soa(domain, primary_ns_ips, dnskey_rrset, ret)
-        if cname:
+        if 'CNAME' in types:
             self._resolve_cname(domain, primary_ns_ips, dnskey_rrset, ret, ret_ips)
-        if mx:
+        if 'MX' in types:
             self._resolve_mx(domain, primary_ns_ips, dnskey_rrset, ret, ret_ips)
-        if ns:
+        if 'NS' in types:
             self._resolve_ns(domain, primary_ns_ips, dnskey_rrset, ret, ret_ips)
-        if txt:
+        if 'TXT' in types:
             self._resolve_txt(domain, primary_ns_ips, dnskey_rrset, ret)
 
-        for other_type in other_types:
-            self._resolve_other(domain, other_type, primary_ns_ips, dnskey_rrset, ret)
+        for other_type in types:
+            if other_type not in DNS._basic_types:
+                self._resolve_other(domain, other_type, primary_ns_ips, dnskey_rrset, ret)
 
         return ret, ret_ips
 
@@ -86,7 +92,8 @@ class DNS:
             logger.warning(f"More than one SOA record for {domain}")
 
         soa_rec = data[0]  # type: SOA
-        result['SOA'] = SOARecord(primary_ns=soa_rec.mname, resp_mailbox_dname=soa_rec.rname, serial=soa_rec.serial,
+        result['SOA'] = SOARecord(primary_ns=soa_rec.mname.to_text(True),
+                                  resp_mailbox_dname=soa_rec.rname.to_text(True), serial=soa_rec.serial,
                                   refresh=soa_rec.refresh, retry=soa_rec.retry, expire=soa_rec.expire,
                                   min_ttl=soa_rec.minimum)
 
@@ -229,6 +236,7 @@ class DNS:
         else:
             return data, sig, from_primary, DNS.INVALID_SELF_SIG
 
+    @timing.time_exec
     def _resolve(self, domain: Name, record_type: str, primary_ns: Optional[List[IPRecord]]) -> \
             Tuple[Optional[RRset], Optional[RRset], bool]:
         """
@@ -287,6 +295,7 @@ class DNS:
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
             return None, None, False
 
+    @timing.time_exec
     def _find_primary_ns(self, domain: Name) -> Tuple[Optional[Name], Optional[Name]]:
         """Attempts to find the containing zone name and the primary nameserver for a given domain name."""
 
@@ -320,6 +329,9 @@ class DNS:
         except dns.resolver.NoAnswer as err:
             message = err.response()
             possible_result = get_authority()
+        except dns.exception.Timeout:
+            logger.warning(f"Resolver timeout when finding primary NS for {domain}")
+            return None, None
 
         # If the current DN is second-level or top-level, return the 'best' non-answer found record
         # (this may be None, None)
@@ -330,6 +342,7 @@ class DNS:
         more_general_name = domain.split(len(domain) - 1)[1]
         return self._find_primary_ns(more_general_name)
 
+    @timing.time_exec
     # noinspection PyBroadException
     def _find_ip_data(self, domain: Name) -> List[IPRecord]:
         """Resolves all A/AAAA records for a given domain name."""

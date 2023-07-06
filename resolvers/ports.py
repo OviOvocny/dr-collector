@@ -4,6 +4,7 @@ __author__ = "Adam Horák"
 import socket
 from typing import List
 
+import timing
 from config import Config
 
 
@@ -22,6 +23,7 @@ class PortScan:
         except BaseException:
             return False
 
+    @timing.time_exec
     def scan(self, address: str, ports: List[int] = []) -> List[int]:
         """Scan a list of single host's ports and return a list of those that are open"""
         port_list = ports if len(ports) > 0 else self._ports
