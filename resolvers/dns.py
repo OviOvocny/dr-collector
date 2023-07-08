@@ -13,6 +13,7 @@ from dns.rrset import RRset
 import timing
 from config import Config
 from datatypes import DNSData, IPRecord, SOARecord, CNAMERecord, MXRecord, NSRecord, IPFromDNS
+from exceptions import ResolutionImpossible
 from logger import logger
 
 
@@ -43,10 +44,17 @@ class DNS:
             types = Config.DNS_RECORD_TYPES
 
         # Determine the start of authority domain name and the primary nameserver domain name
-        authority_dn, primary_ns_dn = self._find_primary_ns(domain)
-        ret = DNSData(**{'dnssec': {}, 'remarks': {}, 'sources': {}, 'ttls': {}})
+        try:
+            authority_dn, primary_ns_dn = self._find_primary_ns(domain)
+        except BaseException as err:
+            logger.warning(f"Domain {domain_name} initial SOA resolution error: {str(err)}")
+            raise ResolutionImpossible()
+
         if authority_dn is None:
-            return DNSData(**ret), set()
+            logger.warning(f"Domain {domain_name} initial SOA resolution failed")
+            raise ResolutionImpossible()
+
+        ret = DNSData(**{'dnssec': {}, 'remarks': {}, 'sources': {}, 'ttls': {}})
 
         # Determine the IP addresses corresponding to the primary NS
         primary_ns_ips = None
