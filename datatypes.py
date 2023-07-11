@@ -98,6 +98,7 @@ class DNSData(TypedDict):
     ttls: TTLMetadata
 
     SOA: Optional[SOARecord]
+    zone_SOA: Optional[SOARecord]
     NS: Optional[Dict[str, NSRecord]]
     A: Optional[List[str]]
     AAAA: Optional[List[str]]

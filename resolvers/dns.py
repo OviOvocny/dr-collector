@@ -45,7 +45,7 @@ class DNS:
 
         # Determine the start of authority domain name and the primary nameserver domain name
         try:
-            authority_dn, primary_ns_dn = self._find_primary_ns(domain)
+            authority_dn, primary_ns_dn, soa = self._find_primary_ns(domain)
         except BaseException as err:
             logger.warning(f"Domain {domain_name} initial SOA resolution error: {str(err)}")
             raise ResolutionImpossible()
@@ -88,6 +88,11 @@ class DNS:
             if other_type not in DNS._basic_types:
                 self._resolve_other(domain, other_type, primary_ns_ips, dnskey_rrset, ret)
 
+        # only store "zone SOA" if it's not the actual SOA record resolved and stored for the queried name
+        soa_data = DNS._make_soa_data(soa)
+        if 'SOA' not in ret or ret['SOA'] != soa_data:
+            ret['zone_SOA'] = soa_data
+
         return ret, ret_ips
 
     def _resolve_soa(self, domain: Name, primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData):
@@ -100,10 +105,7 @@ class DNS:
             logger.warning(f"More than one SOA record for {domain}")
 
         soa_rec = data[0]  # type: SOA
-        result['SOA'] = SOARecord(primary_ns=soa_rec.mname.to_text(True),
-                                  resp_mailbox_dname=soa_rec.rname.to_text(True), serial=soa_rec.serial,
-                                  refresh=soa_rec.refresh, retry=soa_rec.retry, expire=soa_rec.expire,
-                                  min_ttl=soa_rec.minimum)
+        result['SOA'] = DNS._make_soa_data(soa_rec)
 
     def _resolve_a_or_aaaa(self, domain: Name, record_type: Literal['A', 'AAAA'],
                            primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData, ips: Set[IPFromDNS]):
@@ -304,7 +306,7 @@ class DNS:
             return None, None, False
 
     @timing.time_exec
-    def _find_primary_ns(self, domain: Name) -> Tuple[Optional[Name], Optional[Name]]:
+    def _find_primary_ns(self, domain: Name) -> Tuple[Optional[Name], Optional[Name], Optional[SOA]]:
         """Attempts to find the containing zone name and the primary nameserver for a given domain name."""
 
         def get_authority():
@@ -314,8 +316,8 @@ class DNS:
             # noinspection PyShadowingNames
             soa_recs = [a for a in authority_rrset if isinstance(a, SOA)]
             if len(soa_recs) == 0:
-                return authority_rrset.name, None
-            return authority_rrset.name, soa_recs[0].mname
+                return authority_rrset.name, None, None
+            return authority_rrset.name, soa_recs[0].mname, soa_recs[0]
 
         try:
             # Resolve a SOA record for the domain using the internal resolver
@@ -323,14 +325,14 @@ class DNS:
             # Find the first SOA record (you never know what the message may contain)
             soa_recs = [a for a in answer.rrset if isinstance(a, SOA)]
             if len(soa_recs) == 0:
-                return answer.rrset.name, None
-            return answer.rrset.name, soa_recs[0].mname
+                return answer.rrset.name, None, None
+            return answer.rrset.name, soa_recs[0].mname, soa_recs[0]
         except dns.resolver.NXDOMAIN as err:
             # The domain doesn't exist, or it isn't a zone
             # Try looking up the 'best' SOA record in the message's AUTHORITY field
             responses = err.responses()
             if len(responses) == 0:
-                possible_result = None, None
+                possible_result = None, None, None
             else:
                 _, message = responses.popitem()
                 possible_result = get_authority()
@@ -339,7 +341,7 @@ class DNS:
             possible_result = get_authority()
         except dns.exception.Timeout:
             logger.warning(f"Resolver timeout when finding primary NS for {domain}")
-            return None, None
+            return None, None, None
 
         # If the current DN is second-level or top-level, return the 'best' non-answer found record
         # (this may be None, None)
@@ -385,3 +387,10 @@ class DNS:
         except dns.dnssec.ValidationFailure:
             logger.info(f"DNSSEC validation error for {domain} / {data.rdtype}")
             return False
+
+    @staticmethod
+    def _make_soa_data(soa_rec: SOA) -> SOARecord:
+        return SOARecord(primary_ns=soa_rec.mname.to_text(True),
+                         resp_mailbox_dname=soa_rec.rname.to_text(True), serial=soa_rec.serial,
+                         refresh=soa_rec.refresh, retry=soa_rec.retry, expire=soa_rec.expire,
+                         min_ttl=soa_rec.minimum)
