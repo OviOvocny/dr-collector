@@ -85,7 +85,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
 
             for ip_data in domain['ip_data']:
                 # resolve RDAP
-                if ip_data['rdap'] is None:
+                if retry_evaluated or ip_data['remarks']['rdap_evaluated_on'] is None:
                     try:
                         ip_data['rdap'] = rdap.ip(ip_data['ip'])
                         ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
@@ -95,15 +95,15 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                     except ResolutionNeedsRetry:
                         ip_data['remarks']['rdap_evaluated_on'] = None
                 # resolve alive status
-                # if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
-                #     try:
-                #         ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_data['ip'])
-                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
-                #     except ResolutionImpossible:
-                #         ip_data['remarks']['is_alive'] = False
-                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
-                #     except ResolutionNeedsRetry:
-                #         ip_data['remarks']['icmp_evaluated_on'] = None
+                if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
+                    try:
+                        ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_data['ip'])
+                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                    except ResolutionImpossible:
+                        ip_data['remarks']['is_alive'] = False
+                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                    except ResolutionNeedsRetry:
+                        ip_data['remarks']['icmp_evaluated_on'] = None
                 # resolve ASN information
                 if retry_evaluated or 'asn_evaluated_on' not in ip_data['remarks'] or \
                         ip_data['remarks']['asn_evaluated_on'] is None:
@@ -236,6 +236,15 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
                 ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 ip_data['remarks']['icmp_evaluated_on'] = None
+            # resolve RDAP
+            try:
+                ip_data['rdap'] = rdap.ip(ip_data['ip'])
+                ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
+            except ResolutionImpossible:
+                ip_data['rdap'] = None
+                ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
+            except ResolutionNeedsRetry:
+                ip_data['remarks']['rdap_evaluated_on'] = None
             # resolve ASN information
             try:
                 ip_data['asn'] = asn.single(ip_data['ip'])
