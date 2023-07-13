@@ -163,9 +163,9 @@ example3.com - Phish
 ```
 Since there are multiple categories, we need to set the category source to *txt* and specify the getter and mapper. The getter will need to match the value after the dash and the mapper will need to map the category from the source to the categories used by the program, since the source list uses different naming. Thus, our source list will have the following for this source:
 
-| source | category | cat. source | getter | mapper |
-| --- | --- | --- | --- | --- |
-| https://urls.org/domains.txt | - | txt | `-\s(.*)` | `Mallware=malware;.*=phishing` |
+| source                       | category | cat. source | getter    | mapper                         |
+|------------------------------|----------|-------------|-----------|--------------------------------|
+| https://urls.org/domains.txt | -        | txt         | `-\s(.*)` | `Mallware=malware;.*=phishing` |
 
 The getter captures everything after the dash and whitespace. The mapper maps `Mallware` to `malware` and everything else to `phishing`. As you can see, this is fairly flexible and can be used to source various lists for the categories used by the program.
 

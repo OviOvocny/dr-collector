@@ -1,6 +1,6 @@
 class ResolutionImpossible(Exception):
-  pass
+    pass
+
 
 class ResolutionNeedsRetry(Exception):
-  pass
-
+    pass

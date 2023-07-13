@@ -10,29 +10,31 @@ from logger import logger
 from datatypes import Domain
 from loaders.utils import LoaderUtils as U
 
+
 class DirectLoader:
-  """Local file data loader for the collector"""
-  valid_sources = ("plain", "octet-stream", "html", "csv")
+    """Local file data loader for the collector"""
+    valid_sources = ("plain", "octet-stream", "html", "csv")
 
-  def __init__(self, file: str, tmp_dir = "tmp"):
-    self.tmp_dir = tmp_dir
-    self.source = file
+    def __init__(self, file: str, tmp_dir="tmp"):
+        self.tmp_dir = tmp_dir
+        self.source = file
 
-  def load(self):
-    """A generator that just yields the domains found (generator is used for consistency with other loaders)"""
-    domain_names: List[Domain] = []
-    with open(self.source, "r", encoding='utf-8', errors='ignore') as f:
-      for line in f:
-        line = line.strip()
-        if line.startswith(U.comment_prefixes) or len(line) == 0:
-          continue
-        domain = re.search(U.hostname_regex, line)
-        if domain:
-          domain_names.append({
-            'name': domain.group(0),
-            'url': line,
-            'source': self.source,
-            'category': 'unknown',
-          })
-      logger.debug("Loaded " + str(len(domain_names)) + " domains from " + self.source)
-      yield domain_names
+    def load(self):
+        """A generator that just yields the domains found (generator is used for consistency with other loaders)"""
+        domain_names: List[Domain] = []
+        with open(self.source, "r", encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(U.comment_prefixes) or len(line) == 0:
+                    continue
+                domain = re.search(U.hostname_regex, line)
+                if domain:
+                    dom_name = domain.group(0)  # type: str
+                    domain_names.append({
+                        'name': dom_name,
+                        'url': line,
+                        'source': self.source,
+                        'category': 'unknown',
+                    })
+            logger.info("Loaded " + str(len(domain_names)) + " domains from " + self.source)
+            yield domain_names
