@@ -26,6 +26,7 @@ class DNS:
     NO_DNS_KEY = 3
     FROM_PRIMARY_NS = 0
     FROM_RESOLVER = 1
+    CANNOT_RESOLVE = 2
     _basic_types = ('A', 'AAAA', 'SOA', 'CNAME', 'MX', 'NS', 'TXT')
 
     def __init__(self):
@@ -62,10 +63,17 @@ class DNS:
             primary_ns_ips = self._find_ip_data(primary_ns_dn)
 
         # Determine the zone's DNSKEY
-        dnskey_rrset, key_sig_rrset, _ = self._resolve(authority_dn, 'DNSKEY', primary_ns_ips)
-        ret['remarks']['has_dnskey'] = dnskey_rrset is not None and len(dnskey_rrset) != 0
-        ret['remarks']['zone_dnskey_selfsign_ok'] = self._validate_signature(authority_dn, dnskey_rrset,
-                                                                             dnskey_rrset, key_sig_rrset)
+        try:
+            dnskey_rrset, key_sig_rrset, _ = self._resolve(authority_dn, 'DNSKEY', primary_ns_ips)
+            ret['remarks']['has_dnskey'] = dnskey_rrset is not None and len(dnskey_rrset) != 0
+            ret['remarks']['zone_dnskey_selfsign_ok'] = self._validate_signature(authority_dn, dnskey_rrset,
+                                                                                 dnskey_rrset, key_sig_rrset)
+        except BaseException as err:
+            logger.warning(f"Domain {domain_name} DNSKEY resolution error: {str(err)}")
+            dnskey_rrset = None
+            ret['remarks']['has_dnskey'] = False
+            ret['remarks']['zone_dnskey_selfsign_ok'] = False
+
         ret['remarks']['zone'] = authority_dn.to_text(True)
         ret_ips = set()
 
@@ -177,7 +185,12 @@ class DNS:
 
         for txt_record in data:  # type: dns.rdtypes.ANY.TXT.TXT
             for string in txt_record.strings:
-                text_orig = string.decode()
+                try:
+                    text_orig = string.decode()
+                except UnicodeDecodeError as ude:
+                    logger.error(f"TXT decoding error for {domain}", exc_info=ude)
+                    continue
+
                 text = text_orig.lower()
                 if "v=spf1" in text:
                     result['remarks']['has_spf'] = True
@@ -207,6 +220,11 @@ class DNS:
         values in a result object. Consumes exceptions, returns None when there's an error, the resulting RRset
         doesn't match the queried domain name or when it's empty.
         """
+        # default values
+        result['dnssec'][record_type] = DNS.NO_DNS_KEY if dnskey is None else DNS.INVALID_SELF_SIG
+        result['sources'][record_type] = DNS.CANNOT_RESOLVE
+        result['ttls'][record_type] = 0
+
         # noinspection PyBroadException
         try:
             data, _, from_primary, validity = self._resolve_and_validate(domain, record_type, primary_ns, dnskey)
@@ -239,7 +257,7 @@ class DNS:
             return None, None, False, DNS.NO_RRSIG
         if sig is None:
             return data, sig, from_primary, DNS.NO_RRSIG
-        if dnskey is None:
+        if dnskey is None or len(dnskey) == 0:
             return data, sig, from_primary, DNS.NO_DNS_KEY
         if self._validate_signature(domain, dnskey, data, sig):
             return data, sig, from_primary, DNS.VALID_SELF_SIG
@@ -363,8 +381,8 @@ class DNS:
                 if rrset.rdtype == dns.rdatatype.A:
                     for record in rrset:
                         ret.append(IPRecord(ttl=rrset.ttl, value=record.address))
-        except Exception:
-            pass
+        except Exception as err:
+            logger.info(f"Cannot find IPv4 data for {domain}: {str(err)}")
 
         try:
             aaaa = self._dns.resolve(domain, 'AAAA')
@@ -372,8 +390,8 @@ class DNS:
                 if rrset.rdtype == dns.rdatatype.AAAA:
                     for record in rrset:
                         ret.append(IPRecord(ttl=rrset.ttl, value=record.address))
-        except Exception:
-            pass
+        except Exception as err:
+            logger.info(f"Cannot find IPv6 data for {domain}: {str(err)}")
 
         return ret
 

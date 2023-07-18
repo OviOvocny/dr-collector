@@ -1,20 +1,22 @@
 """Self-contained RDAP/WHOIS resolver for the collector, wraps whoisit module with auto bootstrapping and falls back to
 whois if needed"""
-__author__ = "Adam Horák"
+__author__ = "Adam Horák, Ondřej Ondryáš"
 
 import re
 
 import dns.name
 import whoisit
 from whoisit.errors import BootstrapError
-import whoisdomain as whois
-import json
 
 import timing
 from logger import logger
-from datatypes import RDAPDomainData, RDAPIPData, RDAPASNData, RDAPEntityData, IPNetwork
+from datatypes import RDAPDomainData, RDAPIPData, IPNetwork
 from exceptions import *
 from typing import Optional
+import json
+
+import whoisdomain as whois
+# import whois
 
 
 class RDAP:
@@ -83,7 +85,7 @@ class RDAP:
         except Exception as e:
             logger.error(f'Whois query for {domain} failed', exc_info=e)
             raise ResolutionImpossible
-        
+
         logger.warning(f'Whois empty for {domain}')
         raise ResolutionNeedsRetry
 
