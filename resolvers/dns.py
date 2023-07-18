@@ -63,16 +63,19 @@ class DNS:
             primary_ns_ips = self._find_ip_data(primary_ns_dn)
 
         # Determine the zone's DNSKEY
+        dnskey_rrset = None
+        ret['remarks']['has_dnskey'] = False
+        ret['remarks']['zone_dnskey_selfsign_ok'] = False
+
         try:
             dnskey_rrset, key_sig_rrset, _ = self._resolve(authority_dn, 'DNSKEY', primary_ns_ips)
             ret['remarks']['has_dnskey'] = dnskey_rrset is not None and len(dnskey_rrset) != 0
             ret['remarks']['zone_dnskey_selfsign_ok'] = self._validate_signature(authority_dn, dnskey_rrset,
                                                                                  dnskey_rrset, key_sig_rrset)
+        except (dns.resolver.NoNameservers, dns.resolver.LifetimeTimeout):
+            logger.info(f"No nameservers could resolve DNSKEY for {domain_name}")
         except BaseException as err:
             logger.warning(f"Domain {domain_name} DNSKEY resolution error: {str(err)}")
-            dnskey_rrset = None
-            ret['remarks']['has_dnskey'] = False
-            ret['remarks']['zone_dnskey_selfsign_ok'] = False
 
         ret['remarks']['zone'] = authority_dn.to_text(True)
         ret_ips = set()
