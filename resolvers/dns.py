@@ -100,9 +100,10 @@ class DNS:
                 self._resolve_other(domain, other_type, primary_ns_ips, dnskey_rrset, ret)
 
         # only store "zone SOA" if it's not the actual SOA record resolved and stored for the queried name
-        soa_data = DNS._make_soa_data(soa)
-        if 'SOA' not in ret or ret['SOA'] != soa_data:
-            ret['zone_SOA'] = soa_data
+        if soa is not None:
+            soa_data = DNS._make_soa_data(soa)
+            if 'SOA' not in ret or ret['SOA'] != soa_data:
+                ret['zone_SOA'] = soa_data
 
         return ret, ret_ips
 
@@ -332,7 +333,7 @@ class DNS:
 
         def get_authority():
             if len(message.authority) == 0:
-                return None, None
+                return None, None, None
             authority_rrset = message.authority[0]
             # noinspection PyShadowingNames
             soa_recs = [a for a in authority_rrset if isinstance(a, SOA)]
