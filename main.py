@@ -212,13 +212,19 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes, force
                                 # check for errors
                                 try:
                                     completed.result()
+                                except KeyboardInterrupt:
+                                    raise
                                 except BaseException as err:
                                     logger_thread.exception(f'Exception in resolving thread in batch #{batch}',
                                                             exc_info=err)
                                 # update progress bar
                                 resolving.update(1)
                                 completed_count += 1
-                        except TimeoutError:
+                        except KeyboardInterrupt:
+                            logger_thread.warning(f"Interrupted manually")
+                            mongo.flush()
+                            break
+                        except BaseException:  # for some reason, TimeoutError doesn't get caught here
                             logger_thread.error(f"Batch #{batch} didn't complete in {Config.TIMEOUT_PER_BATCH} s")
                             resolving.update(Config.MONGO_READ_BATCH_SIZE - completed_count)
                             mongo.flush()
