@@ -4,7 +4,7 @@ load_dotenv()
 
 
 class Config:
-    TIMEOUT = 5
+    TIMEOUT = 3
     DNS_SERVERS = ['193.17.47.1', '185.43.135.1']
     DNS_RECORD_TYPES = ('A', 'AAAA', 'SOA', 'CNAME', 'MX', 'NS', 'TXT', 'NAPTR')
     COLLECT_IPS_FROM = ('A', 'AAAA')
@@ -15,8 +15,8 @@ class Config:
     MONGO_DB = 'drdb'
     MONGO_READ_BATCH_SIZE = 100
     MONGO_WRITE_BATCH_SIZE = 25
-    TIMEOUT_PER_BATCH = MONGO_READ_BATCH_SIZE * 30
-    TERMINATOR = TIMEOUT_PER_BATCH * 2
+    TIMEOUT_PER_BATCH = MONGO_READ_BATCH_SIZE * 4
+    TERMINATOR = TIMEOUT_PER_BATCH + 60
     #
     UA_STRING = 'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ' \
                 'Chrome/77.0.3865.90 Safari/537.36'

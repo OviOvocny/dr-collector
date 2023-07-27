@@ -8,6 +8,7 @@ import dns.name
 import whoisit
 from whoisit.errors import BootstrapError
 
+from config import Config
 import timing
 from logger import logger_resolvers as logger
 from datatypes import RDAPDomainData, RDAPIPData, IPNetwork
@@ -22,6 +23,11 @@ class RDAP:
     def __init__(self):
         if not whoisit.is_bootstrapped():
             load_bootstrap_data()
+
+        whoisit.utils.http_timeout = Config.TIMEOUT
+        whoisit.utils.http_max_retries = 2
+        whoisit.utils.http_pool_maxsize = 32
+        whoisit.utils.http_pool_connections = 32
 
     @timing.time_exec
     def domain(self, domain: str, **kwargs) -> Optional[RDAPDomainData]:
@@ -62,7 +68,7 @@ class RDAP:
     def _query_whois(domain: str) -> Optional[RDAPDomainData]:
         try:
             logger.info(f'Trying whois fallback for {domain}')
-            w = whois.query(domain)
+            w = whois.query(domain, timeout=Config.TIMEOUT)
             if w is not None:
                 return whois_to_rdap_domain(w)
         except whois.exceptions.WhoisQuotaExceeded:
