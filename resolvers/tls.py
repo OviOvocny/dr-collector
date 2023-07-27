@@ -9,6 +9,7 @@ import datetime
 from OpenSSL.crypto import X509
 import OpenSSL.SSL
 import socket
+
 __author__ = "Jan Polišenský, Adam Horák"
 
 
@@ -20,20 +21,20 @@ class TLS:
     def _download(self, host: str, port: int = 443):
         """Download TLS certificate chain from host:port"""
         result = {}
-        ctx = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
-        ctx.set_timeout(self.timeout)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(self.timeout)
+
+        sock_int = None
 
         try:
+            sock_int = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock_int.settimeout(self.timeout)
+            sock_int.setblocking(True)
+
+            ctx = OpenSSL.SSL.Context(OpenSSL.SSL.TLS_CLIENT_METHOD)
+            ctx.set_timeout(self.timeout)
+
+            sock = OpenSSL.SSL.Connection(context=ctx, socket=sock_int)
             sock.connect((host, port))
-            get = str.encode(f"GET / HTTP/1.1\n{Config.UA_STRING}\n\n")
-            sock.send(get)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock = OpenSSL.SSL.Connection(context=ctx, socket=sock)
-            sock.settimeout(self.timeout)
-            sock.connect((host, 443))
-            sock.setblocking(1)
+
             sock.set_connect_state()
             sock.set_tlsext_host_name(str.encode(host))
             sock.do_handshake()
@@ -48,22 +49,21 @@ class TLS:
         except socket.timeout:
             logger.error(f"{host} TLS: socket timeout")
             raise ResolutionNeedsRetry
-        except OpenSSL.SSL.Error:
-            logger.error(f"{host} TLS: cannot find any root certificates")
+        except OpenSSL.SSL.Error as e:
+            logger.error(f"{host} TLS: cannot find any root certificates: {str(e)}")
             raise ResolutionImpossible
         except ConnectionRefusedError:
             logger.error(f"{host} TLS: connection refused")
             raise ResolutionImpossible
-        except OSError as e:
-            logger.error(f"{host} TLS: built-in exception in Python", exc_info=e)
+        except BaseException as e:
+            logger.error(f"{host} TLS: general error", exc_info=e)
             raise ResolutionNeedsRetry
-
-        try:
-            sock.shutdown()
-            sock.close()
-        except BaseException:
-            logger.error(f"{host} TLS: Fatal error during socket closing")
-            return result
+        finally:
+            try:
+                if sock_int is not None:
+                    sock_int.close()
+            except BaseException as err:
+                logger.error(f"{host} TLS: Error during OpenSSL connection closing", exc_info=err)
 
         return result
 
