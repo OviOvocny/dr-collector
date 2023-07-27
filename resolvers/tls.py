@@ -43,7 +43,7 @@ class TLS:
                 except OSError:
                     time.sleep(Config.TLS_TIMEOUT / Config.TLS_NONBLOCKING_RETRIES)
             else:
-                raise ResolutionNeedsRetry
+                raise ResolutionImpossible
 
             sock.set_connect_state()
             sock.set_tlsext_host_name(str.encode(host))
@@ -55,7 +55,7 @@ class TLS:
                 except OpenSSL.SSL.WantReadError:
                     time.sleep(Config.TLS_TIMEOUT / Config.TLS_NONBLOCKING_RETRIES)
             else:
-                raise ResolutionNeedsRetry
+                raise ResolutionImpossible
 
             result["cipher_name"] = sock.get_cipher_name()
             chain = sock.get_verified_chain()
@@ -74,7 +74,7 @@ class TLS:
         except ConnectionRefusedError:
             logger.error(f"{host} TLS: connection refused")
             raise ResolutionImpossible
-        except ResolutionNeedsRetry:
+        except (ResolutionNeedsRetry, ResolutionImpossible):
             raise
         except BaseException as e:
             logger.error(f"{host} TLS: general error", exc_info=e)
