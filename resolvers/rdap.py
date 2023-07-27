@@ -42,6 +42,8 @@ class RDAP:
                 logger.warning(f"RDAP rate limited for {current_domain}")
             except whoisit.errors.ResourceDoesNotExist:
                 logger.info(f"RDAP resource doesn't exist: {current_domain}")
+            except whoisit.errors.QueryError as e:
+                logger.info(f"RDAP status code error for {current_domain}: {str(e)}")
             except Exception as e:
                 logger.error(f'RDAP error for {current_domain}', exc_info=e)
 
