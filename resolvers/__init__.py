@@ -56,6 +56,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                 domain['dns'] = None
                 domain['remarks']['dns_evaluated_on'] = None
                 logger.error(f"DNS resolver uncaught error for {name}", exc_info=err)
+            dns.close_socket()
 
         # resolve RDAP if needed
         if retry_evaluated or domain['remarks']['rdap_evaluated_on'] is None:
@@ -237,6 +238,7 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
     except ResolutionNeedsRetry:
         domain_data['remarks']['dns_evaluated_on'] = None
         domain_data['remarks']['dns_had_no_ips'] = False
+    dns.close_socket()
 
     logger.debug(f"Resolving RDAP for {name}")
     # resolve RDAP

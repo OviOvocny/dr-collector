@@ -1,4 +1,7 @@
 """TLS resolver with X.509 extension reader"""
+import threading
+import time
+
 import timing
 from exceptions import *
 from datatypes import TLSData, Certificate, CertificateExtension
@@ -26,18 +29,34 @@ class TLS:
 
         try:
             sock_int = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock_int.settimeout(self.timeout)
-            sock_int.setblocking(True)
+            sock_int.settimeout(Config.TLS_TIMEOUT)
+            sock_int.setblocking(False)
 
             ctx = OpenSSL.SSL.Context(OpenSSL.SSL.TLS_CLIENT_METHOD)
-            ctx.set_timeout(self.timeout)
+            ctx.set_timeout(Config.TLS_TIMEOUT)
 
             sock = OpenSSL.SSL.Connection(context=ctx, socket=sock_int)
-            sock.connect((host, port))
+            for i in range(Config.TLS_NONBLOCKING_RETRIES):
+                try:
+                    sock.connect((host, port))
+                    break
+                except OSError:
+                    time.sleep(Config.TLS_TIMEOUT / Config.TLS_NONBLOCKING_RETRIES)
+            else:
+                raise ResolutionNeedsRetry
 
             sock.set_connect_state()
             sock.set_tlsext_host_name(str.encode(host))
-            sock.do_handshake()
+
+            for i in range(Config.TLS_NONBLOCKING_RETRIES):
+                try:
+                    sock.do_handshake()
+                    break
+                except OpenSSL.SSL.WantReadError:
+                    time.sleep(Config.TLS_TIMEOUT / Config.TLS_NONBLOCKING_RETRIES)
+            else:
+                raise ResolutionNeedsRetry
+
             result["cipher_name"] = sock.get_cipher_name()
             chain = sock.get_verified_chain()
             result["chain_len"] = len(chain) if chain else 0
@@ -55,6 +74,8 @@ class TLS:
         except ConnectionRefusedError:
             logger.error(f"{host} TLS: connection refused")
             raise ResolutionImpossible
+        except ResolutionNeedsRetry:
+            raise
         except BaseException as e:
             logger.error(f"{host} TLS: general error", exc_info=e)
             raise ResolutionNeedsRetry

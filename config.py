@@ -5,6 +5,8 @@ load_dotenv()
 
 class Config:
     TIMEOUT = 3
+    TLS_TIMEOUT = 5
+    TLS_NONBLOCKING_RETRIES = 10
     DNS_SERVERS = ['193.17.47.1', '185.43.135.1']
     DNS_RECORD_TYPES = ('A', 'AAAA', 'SOA', 'CNAME', 'MX', 'NS', 'TXT', 'NAPTR')
     COLLECT_IPS_FROM = ('A', 'AAAA')
