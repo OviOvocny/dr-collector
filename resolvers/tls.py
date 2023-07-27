@@ -3,7 +3,7 @@ import timing
 from exceptions import *
 from datatypes import TLSData, Certificate, CertificateExtension
 from typing import List
-from logger import logger
+from logger import logger_resolvers as logger
 from config import Config
 import datetime
 from OpenSSL.crypto import X509

@@ -25,19 +25,21 @@ from loaders.utils import LoaderUtils as U
 
 
 @timing.time_exec
-def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated=False):
+def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated=False, dom_num=0):
     """Resolve domain basic info and store results in db"""
     name = domain['domain_name']
+    logger.info(f"Resolving {name} (#{dom_num})")
     # set up resolvers
     rdap = RDAP()
 
     if mode == 'basic':
         # resolve DNS if needed
         if retry_evaluated or domain['remarks']['dns_evaluated_on'] is None:
+            logger.info(f"Resolving DNS for {name} (#{dom_num})")
             dns = DNS()
             try:
-                domain['dns'], ips = dns.query(name)
                 domain['remarks']['dns_evaluated_on'] = datetime.now()
+                domain['dns'], ips = dns.query(name)
                 domain['remarks']['dns_had_no_ips'] = ips is None or len(ips) == 0
                 if ips is not None:
                     if domain['ip_data'] is None:
@@ -47,30 +49,35 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                             domain['ip_data'].append(empty_ip_data(ip))
             except ResolutionImpossible:
                 domain['dns'] = None
-                domain['remarks']['dns_evaluated_on'] = datetime.now()
                 domain['remarks']['dns_had_no_ips'] = False
             except ResolutionNeedsRetry:
                 domain['remarks']['dns_evaluated_on'] = None
             except BaseException as err:
                 domain['dns'] = None
-                domain['remarks']['dns_evaluated_on'] = datetime.now()
+                domain['remarks']['dns_evaluated_on'] = None
                 logger.error(f"DNS resolver uncaught error for {name}", exc_info=err)
 
         # resolve RDAP if needed
         if retry_evaluated or domain['remarks']['rdap_evaluated_on'] is None:
+            logger.info(f"Resolving RDAP for {name} (#{dom_num})")
             try:
-                domain['rdap'] = rdap.domain(name)
                 domain['remarks']['rdap_evaluated_on'] = datetime.now()
+                domain['rdap'] = rdap.domain(name)
             except ResolutionImpossible:
                 domain['rdap'] = None
-                domain['remarks']['rdap_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 domain['remarks']['rdap_evaluated_on'] = None
+            except BaseException as err:
+                domain['rdap'] = None
+                domain['remarks']['rdap_evaluated_on'] = None
+                logger.error(f"RDAP resolver uncaught error for {name}", exc_info=err)
 
         # resolve TLS if needed
         if retry_evaluated or domain['remarks']['tls_evaluated_on'] is None:
+            logger.info(f"Resolving TLS for {name} (#{dom_num})")
             tls = TLS()
             try:
+                domain['remarks']['tls_evaluated_on'] = datetime.now()
                 domain['tls'] = tls.resolve(name)
             except ResolutionImpossible:
                 domain['tls'] = None
@@ -80,40 +87,54 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                     domain['tls'] = tls.resolve(name, timeout=2)
                 except BaseException:  # anything
                     domain['tls'] = None
-            finally:
-                domain['remarks']['tls_evaluated_on'] = datetime.now()
+                    domain['remarks']['tls_evaluated_on'] = None
+            except BaseException as err:
+                domain['tls'] = None
+                domain['remarks']['tls_evaluated_on'] = None
+                logger.error(f"TLS resolver uncaught error for {name}", exc_info=err)
 
         # resolve IP RDAP and alive status if needed
         if domain['ip_data'] is not None:
+            logger.info(f"Resolving IP data for {name} (#{dom_num})")
             icmp = ICMP()
             asn = ASN()
 
             for ip_data in domain['ip_data']:
+                ip_val = ip_data['ip']
                 # resolve RDAP
                 if retry_evaluated or ip_data['remarks']['rdap_evaluated_on'] is None:
+                    logger.debug(f"Resolving RDAP for {ip_val} (#{dom_num})")
                     try:
-                        ip_data['rdap'] = rdap.ip(ip_data['ip'])
+                        ip_data['rdap'] = rdap.ip(ip_val)
                         ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
                     except ResolutionImpossible:
                         ip_data['rdap'] = None
                         ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
                     except ResolutionNeedsRetry:
                         ip_data['remarks']['rdap_evaluated_on'] = None
+                    except BaseException as err:
+                        domain['rdap'] = None
+                        domain['remarks']['rdap_evaluated_on'] = None
+                        logger.error(f"RDAP resolver uncaught error for {ip_val}", exc_info=err)
+
                 # resolve alive status
-                if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
-                    try:
-                        ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_data['ip'])
-                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
-                    except ResolutionImpossible:
-                        ip_data['remarks']['is_alive'] = False
-                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
-                    except ResolutionNeedsRetry:
-                        ip_data['remarks']['icmp_evaluated_on'] = None
+                # if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
+                #     logger.debug(f"Pinging {ip_val} (#{dom_num})")
+                #     try:
+                #         ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_val)
+                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                #     except ResolutionImpossible:
+                #         ip_data['remarks']['is_alive'] = False
+                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                #     except ResolutionNeedsRetry:
+                #         ip_data['remarks']['icmp_evaluated_on'] = None
+
                 # resolve ASN information
                 if retry_evaluated or 'asn_evaluated_on' not in ip_data['remarks'] or \
                         ip_data['remarks']['asn_evaluated_on'] is None:
+                    logger.debug(f"Resolving ASN for {ip_val} (#{dom_num})")
                     try:
-                        ip_data['asn'] = asn.single(ip_data['ip'])
+                        ip_data['asn'] = asn.single(ip_val)
                         ip_data['remarks']['asn_evaluated_on'] = datetime.now()
                     except ResolutionImpossible:
                         ip_data['asn'] = None
@@ -129,6 +150,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             geo = GeoIP2()
             for ip_data in domain['ip_data']:
                 if retry_evaluated or ip_data['remarks']['geo_evaluated_on'] is None:
+                    logger.debug(f"Resolving GEO for {ip_data['ip']} (#{dom_num})")
                     try:
                         ip_data['geo'] = geo.single(ip_data['ip'])
                         ip_data['remarks']['geo_evaluated_on'] = datetime.now()
@@ -143,6 +165,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             nerd = NERD(respect_bucket=True)  # respect bucket will not help in parallel mode!!
             for ip_data in domain['ip_data']:
                 if retry_evaluated or ip_data['remarks']['rep_evaluated_on'] is None:
+                    logger.debug(f"Resolving NERD for {ip_data['ip']} (#{dom_num})")
                     if ip_data['rep'] is None:
                         ip_data['rep'] = {}
                     try:
@@ -159,9 +182,11 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             scanner = PortScan()
             for ip_data in domain['ip_data']:
                 if retry_evaluated or ip_data['remarks']['ports_scanned_on'] is None:
+                    logger.debug(f"Scanning ports for {ip_data['ip']} (#{dom_num})")
                     ip_data['ports'] = scanner.scan(ip_data['ip'])  # TODO add option to specify ports
                     ip_data['remarks']['ports_scanned_on'] = datetime.now()
 
+    logger.info(f"Domain {name} (#{dom_num}) done")
     # store results
     mongo.store(domain)
 
@@ -191,6 +216,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
         'source': 'try_domain',
         'category': 'try_domain'
     }, 'test')
+
+    logger.debug(f"Resolving DNS for {name}")
     # resolve DNS
     try:
         dns_data, ips = dns.query(name)
@@ -210,6 +237,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
     except ResolutionNeedsRetry:
         domain_data['remarks']['dns_evaluated_on'] = None
         domain_data['remarks']['dns_had_no_ips'] = False
+
+    logger.debug(f"Resolving RDAP for {name}")
     # resolve RDAP
     try:
         domain_data['rdap'] = rdap.domain(name)
@@ -219,6 +248,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
         domain_data['remarks']['rdap_evaluated_on'] = datetime.now()
     except ResolutionNeedsRetry:
         domain_data['remarks']['rdap_evaluated_on'] = None
+
+    logger.debug(f"Resolving TLS for {name}")
     # resolve TLS
     try:
         domain_data['tls'] = tls.resolve(name)
@@ -228,10 +259,14 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
         domain_data['remarks']['tls_evaluated_on'] = datetime.now()
     except ResolutionNeedsRetry:
         domain_data['remarks']['tls_evaluated_on'] = None
+
+    logger.debug(f"Resolving IPs for {name}")
     # IPs
     if domain_data['ip_data'] is not None:
         for ip_data in domain_data['ip_data']:
             ip_data['rep'] = {}
+
+            logger.debug(f"Pinging {ip_data}")
             # try ICMP ping
             try:
                 ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_data['ip'])
@@ -241,6 +276,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
                 ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 ip_data['remarks']['icmp_evaluated_on'] = None
+
+            logger.debug(f"Resolving RDAP for {ip_data}")
             # resolve RDAP
             try:
                 ip_data['rdap'] = rdap.ip(ip_data['ip'])
@@ -250,6 +287,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
                 ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 ip_data['remarks']['rdap_evaluated_on'] = None
+
+            logger.debug(f"Resolving ASN for {ip_data}")
             # resolve ASN information
             try:
                 ip_data['asn'] = asn.single(ip_data['ip'])
@@ -259,6 +298,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
                 ip_data['remarks']['asn_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 ip_data['remarks']['asn_evaluated_on'] = None
+
+            logger.debug(f"Resolving GEO for {ip_data}")
             # resolve geo
             try:
                 ip_data['geo'] = geo.single(ip_data['ip'])
@@ -268,6 +309,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
                 ip_data['remarks']['geo_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 ip_data['remarks']['geo_evaluated_on'] = None
+
+            logger.debug(f"Resolving NERD for {ip_data}")
             # resolve reputation
             try:
                 ip_data['rep']['nerd'] = nerd.resolve(ip_data['ip'])
@@ -277,6 +320,8 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
                 ip_data['remarks']['rep_evaluated_on'] = datetime.now()
             except ResolutionNeedsRetry:
                 ip_data['remarks']['rep_evaluated_on'] = None
+
+            logger.debug(f"Resolving ports for {ip_data}")
             # resolve ports
             if scan_ports:
                 try:
@@ -290,5 +335,6 @@ def try_domain(domain: str, scan_ports=False) -> DomainData:
             else:
                 ip_data['ports'] = []
                 ip_data['remarks']['ports_scanned_on'] = None
+
     # return results
     return domain_data

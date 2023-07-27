@@ -14,7 +14,7 @@ import timing
 from config import Config
 from datatypes import DNSData, IPRecord, SOARecord, CNAMERecord, MXRecord, NSRecord, IPFromDNS
 from exceptions import ResolutionImpossible
-from logger import logger
+from logger import logger_resolvers as logger
 
 
 # IDEA: add related_ips based on the primary NS address to SOA and to the resulting IP list, see what it does
@@ -40,8 +40,6 @@ class DNS:
     # query domain for all record types in record_types
     @timing.time_exec
     def query(self, domain_name: str, types: Optional[Tuple[str]] = None) -> Tuple[DNSData, Set[IPFromDNS]]:
-        logger.info(f"Resolving DNS for {domain_name}")
-
         domain = dns.name.from_text(domain_name)
         if types is None:
             types = Config.DNS_RECORD_TYPES
@@ -101,13 +99,16 @@ class DNS:
             if other_type not in DNS._basic_types:
                 self._resolve_other(domain, other_type, primary_ns_ips, dnskey_rrset, ret)
 
+        collect_ips_from = Config.COLLECT_IPS_FROM
+        filtered_ret_ips = [x for x in ret_ips if x[1] in collect_ips_from]
+
         # only store "zone SOA" if it's not the actual SOA record resolved and stored for the queried name
         if soa is not None:
             soa_data = DNS._make_soa_data(soa)
             if 'SOA' not in ret or ret['SOA'] != soa_data:
                 ret['zone_SOA'] = soa_data
 
-        return ret, ret_ips
+        return ret, set(filtered_ret_ips)
 
     def _resolve_soa(self, domain: Name, primary_ns: List[IPRecord], dnskey: Optional[RRset], result: DNSData):
         """Resolves a SOA record for a given domain name and populates a result object."""
@@ -364,7 +365,7 @@ class DNS:
             message = err.response()
             possible_result = get_authority()
         except dns.exception.Timeout:
-            logger.warning(f"Resolver timeout when finding primary NS for {domain}")
+            logger.info(f"Resolver timeout when finding primary NS for {domain}")
             return None, None, None
 
         # If the current DN is second-level or top-level, return the 'best' non-answer found record

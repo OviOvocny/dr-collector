@@ -4,16 +4,19 @@ load_dotenv()
 
 
 class Config:
-    TIMEOUT = 3
-    TERMINATOR = 10 * 60
+    TIMEOUT = 5
     DNS_SERVERS = ['193.17.47.1', '185.43.135.1']
     DNS_RECORD_TYPES = ('A', 'AAAA', 'SOA', 'CNAME', 'MX', 'NS', 'TXT', 'NAPTR')
+    COLLECT_IPS_FROM = ('A', 'AAAA')
     MAX_WORKERS = None
-    ENABLE_TIMING = True
+    ENABLE_TIMING = False
     # MongoDB
     MONGO_URI = getenv('DR_MONGO_URI', 'mongodb://localhost:27017/')
     MONGO_DB = 'drdb'
-    MONGO_BATCH_SIZE = 500
+    MONGO_READ_BATCH_SIZE = 100
+    MONGO_WRITE_BATCH_SIZE = 25
+    TIMEOUT_PER_BATCH = MONGO_READ_BATCH_SIZE * 30
+    TERMINATOR = TIMEOUT_PER_BATCH * 2
     #
     UA_STRING = 'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ' \
                 'Chrome/77.0.3865.90 Safari/537.36'

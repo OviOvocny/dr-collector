@@ -39,11 +39,11 @@ class MongoWrapper:
             print("Connection to MongoDB failed, check your connection settings. Exiting...")
             sys.exit(1)
 
-    def __init__(self, collection: str, batch_size: int = Config.MONGO_BATCH_SIZE):
+    def __init__(self, collection: str, write_batch_size: int = Config.MONGO_WRITE_BATCH_SIZE):
         self._client = pymongo.MongoClient(Config.MONGO_URI)
         self._db = self._client[Config.MONGO_DB]
         self._collection = self._db[collection]
-        self.batch_size = batch_size
+        self._write_batch_size = write_batch_size
         self._closed = False
         atexit.register(self.cleanup)
 
@@ -54,7 +54,7 @@ class MongoWrapper:
         if self._closed:
             return
 
-        if self.batch_size > len(self.batch_queue) > 0:
+        if self._write_batch_size > len(self.batch_queue) > 0:
             logger.debug("DB: Flushed remaining " + str(len(self.batch_queue)) + " items before exit")
         self._flush('domain_name')
         self._client.close()
@@ -90,6 +90,9 @@ class MongoWrapper:
     def update_one(self, filter: dict, data: dict):
         return self._collection.update_one(filter, data)
 
+    def flush(self, skip_duplicates: bool = False):
+        self._flush(key='domain_name', skip_duplicates=skip_duplicates)
+
     # storing
 
     def store(self, data: DomainData, skip_duplicates: bool = False):
@@ -102,7 +105,7 @@ class MongoWrapper:
         # add to batch queue
         self.batch_queue.append(data)
         # flush if batch queue is full
-        if len(self.batch_queue) >= self.batch_size:
+        if len(self.batch_queue) >= self._write_batch_size:
             logger.debug("DB: Batch queue full, flushing " + str(len(self.batch_queue)) + " items")
             self._flush(key='domain_name', skip_duplicates=skip_duplicates)
 
@@ -117,7 +120,7 @@ class MongoWrapper:
         with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
             click.echo(f'Preparing {len(data)} items...')
             futures = [executor.submit(self._upsert, chunk, 'domain_name', skip_duplicates)
-                       for chunk in chunks(data, Config.MONGO_BATCH_SIZE)]
+                       for chunk in chunks(data, Config.MONGO_READ_BATCH_SIZE)]
             stored = 0
             with click.progressbar(length=len(futures), show_pos=True, show_percent=True, label="Writes") as loading:
                 for future in concurrent.futures.as_completed(futures):
@@ -145,7 +148,7 @@ class MongoWrapper:
     def _find_query(self, query, limit: int = 0) -> Tuple[Cursor[DomainData], int]:
         db_count = self._collection.count_documents(query)
         count = db_count if limit == 0 else min(limit, db_count)
-        return self._collection.find(query, limit=limit, batch_size=Config.MONGO_BATCH_SIZE), count
+        return self._collection.find(query, limit=limit, batch_size=Config.MONGO_READ_BATCH_SIZE), count
 
     def get_unresolved(self, retry_evaluated=False, force=False, limit: int = 0):
         if force:

@@ -9,14 +9,13 @@ import whoisit
 from whoisit.errors import BootstrapError
 
 import timing
-from logger import logger
+from logger import logger_resolvers as logger
 from datatypes import RDAPDomainData, RDAPIPData, IPNetwork
 from exceptions import *
 from typing import Optional
 import json
 
 import whoisdomain as whois
-# import whois
 
 
 class RDAP:
@@ -30,14 +29,13 @@ class RDAP:
 
         def worker(current_domain):
             try:
-                logger.debug(f"Querying RDAP for {current_domain}")
                 return whoisit.domain(current_domain, **kwargs)
             except whoisit.errors.UnsupportedError:
-                logger.warning(f"No RDAP endpoint for {current_domain}")
+                logger.info(f"No RDAP endpoint for {current_domain}")
             except whoisit.errors.RateLimitedError:
                 logger.warning(f"RDAP rate limited for {current_domain}")
             except whoisit.errors.ResourceDoesNotExist:
-                logger.warning(f"RDAP resource doesn't exist: {current_domain}")
+                logger.info(f"RDAP resource doesn't exist: {current_domain}")
             except Exception as e:
                 logger.error(f'RDAP error for {current_domain}', exc_info=e)
 
@@ -71,7 +69,7 @@ class RDAP:
             logger.error(f'Whois quota exceeded (at {domain})')
             raise ResolutionNeedsRetry
         except whois.exceptions.UnknownTld:
-            logger.warning(f'Unknown TLD for {domain}')
+            logger.info(f'Unknown TLD for {domain}')
             raise ResolutionImpossible
         except whois.exceptions.WhoisPrivateRegistry:
             logger.warning(f'Whois private registry for {domain}')
@@ -86,7 +84,7 @@ class RDAP:
             logger.error(f'Whois query for {domain} failed', exc_info=e)
             raise ResolutionImpossible
 
-        logger.warning(f'Whois empty for {domain}')
+        logger.info(f'Whois empty for {domain}')
         raise ResolutionNeedsRetry
 
     @timing.time_exec

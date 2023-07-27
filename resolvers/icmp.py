@@ -7,7 +7,7 @@ from icmplib import ping, multiping
 from icmplib.exceptions import NameLookupError, SocketAddressError, SocketPermissionError
 
 import timing
-from logger import logger
+from logger import logger_resolvers as logger
 from config import Config
 from exceptions import *
 
@@ -30,7 +30,8 @@ class ICMP:
         except (NameLookupError, SocketAddressError) as e:
             logger.error("Error during ping: " + str(e))
             raise ResolutionNeedsRetry
-        except BaseException:
+        except BaseException as e:
+            logger.error("Error during ping", exc_info=e)
             raise ResolutionImpossible
 
     @timing.time_exec
@@ -45,5 +46,6 @@ class ICMP:
         except (NameLookupError, SocketAddressError) as e:
             logger.error("Error during ping: " + str(e))
             raise ResolutionNeedsRetry
-        except BaseException:
+        except BaseException as e:
+            logger.error("Error during ping", exc_info=e)
             raise ResolutionImpossible

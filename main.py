@@ -6,10 +6,11 @@ import time
 from math import ceil
 
 import click
+import pymongo
 
 import timing
 from config import Config
-from datatypes import empty_domain_data
+from datatypes import empty_domain_data, DomainData
 from loaders import SourceLoader, DirectLoader, MISPLoader
 from logger import logger, logger_thread
 from mongo import MongoWrapper
@@ -136,7 +137,7 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes, force
     mongo = MongoWrapper(label)
     click.echo(f'Looking for domains without {resolver_type} data in {label} collection...')
     # get domains without data
-    unresolved = []
+    unresolved: pymongo.cursor.Cursor[DomainData]
     count = 0
     if resolver_type == 'basic':
         unresolved, count = mongo.get_unresolved(retry_evaluated, force, limit=limit)
@@ -146,6 +147,9 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes, force
         unresolved, count = mongo.get_unresolved_rep(retry_evaluated, force, limit=limit)
     elif resolver_type == 'ports':
         unresolved, count = mongo.get_unresolved_ports(retry_evaluated, force, limit=limit)
+    else:
+        raise RuntimeError('Invalid resolver type')
+
     if count == 0:
         click.echo('Nothing to resolve')
         return
@@ -190,21 +194,41 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes, force
             with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
                 terminator_thread = threading.Thread(target=terminator, args=(executor, resolving, mongo))
                 terminator_thread.start()
-                futures = [executor.submit(resolve_domain, domain, mongo, resolver_type, retry_evaluated or force)
-                           for domain in unresolved]
-                for completed in concurrent.futures.as_completed(futures):
-                    # check for errors
-                    try:
-                        completed.result()
-                    except TimeoutError:
-                        logger_thread.error('Timeout error in resolving thread')
-                    except Exception:
-                        logger_thread.exception('Exception in resolving thread')
-                    # update progress bar
-                    resolving.update(1)
+
+                futures = []
+                batch = 1
+                total_batches = count // Config.MONGO_READ_BATCH_SIZE
+                dom_num = 0
+                for domain in unresolved:
+                    dom_num += 1
+                    futures.append(executor.submit(resolve_domain, domain, mongo, resolver_type, retry_evaluated
+                                                   or force, dom_num))
+
+                    if len(futures) == Config.MONGO_READ_BATCH_SIZE:
+                        completed_count = 0
+                        logger.info(f"Batch {batch}/{total_batches} starting")
+                        try:
+                            for completed in concurrent.futures.as_completed(futures, timeout=Config.TIMEOUT_PER_BATCH):
+                                # check for errors
+                                try:
+                                    completed.result()
+                                except BaseException as err:
+                                    logger_thread.exception(f'Exception in resolving thread in batch #{batch}',
+                                                            exc_info=err)
+                                # update progress bar
+                                resolving.update(1)
+                                completed_count += 1
+                        except TimeoutError:
+                            logger_thread.error(f"Batch #{batch} didn't complete in {Config.TIMEOUT_PER_BATCH} s")
+                            resolving.update(Config.MONGO_READ_BATCH_SIZE - completed_count)
+                            mongo.flush()
+
+                        futures.clear()
+                        batch += 1
+
                 timing.dump()
                 click.echo(f'\nWaiting for terminator... (max 10 seconds)')
-                terminator_thread.join()
+                terminator_thread.join(timeout=10)
 
 
 def terminator(executor: concurrent.futures.ThreadPoolExecutor,

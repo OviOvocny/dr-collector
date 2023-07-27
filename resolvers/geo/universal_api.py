@@ -6,7 +6,7 @@ from config import Config
 from datatypes import GeoData
 from exceptions import *
 from typing import Union, List, Tuple, Callable
-from logger import logger
+from logger import logger_resolvers as logger
 import requests
 import time
 
