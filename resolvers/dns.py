@@ -37,6 +37,14 @@ class DNS:
         self._udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._udp_sock.setblocking(False)
 
+    def __del__(self):
+        self.close_socket()
+
+    def close_socket(self):
+        if self._udp_sock:
+            self._udp_sock.close()
+            self._udp_sock = None
+
     # query domain for all record types in record_types
     @timing.time_exec
     def query(self, domain_name: str, types: Optional[Tuple[str]] = None) -> Tuple[DNSData, Set[IPFromDNS]]:
