@@ -17,6 +17,7 @@ from exceptions import *
 from datatypes import DomainData, empty_ip_data, empty_domain_data
 from mongo import MongoWrapper
 from datetime import datetime
+from logger import logger
 
 # some stuff for dry run
 import re
@@ -37,7 +38,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             try:
                 domain['dns'], ips = dns.query(name)
                 domain['remarks']['dns_evaluated_on'] = datetime.now()
-                domain['remarks']['dns_had_no_ips'] = ips is None
+                domain['remarks']['dns_had_no_ips'] = ips is None or len(ips) == 0
                 if ips is not None:
                     if domain['ip_data'] is None:
                         domain['ip_data'] = []
@@ -50,6 +51,10 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                 domain['remarks']['dns_had_no_ips'] = False
             except ResolutionNeedsRetry:
                 domain['remarks']['dns_evaluated_on'] = None
+            except BaseException as err:
+                domain['dns'] = None
+                domain['remarks']['dns_evaluated_on'] = datetime.now()
+                logger.error(f"DNS resolver uncaught error for {name}", exc_info=err)
 
         # resolve RDAP if needed
         if retry_evaluated or domain['remarks']['rdap_evaluated_on'] is None:

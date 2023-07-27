@@ -326,7 +326,7 @@ class DNS:
         try:
             res_data, res_sig = resolve_fallback()
             return res_data, res_sig, False
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
             return None, None, False
 
     @timing.time_exec
