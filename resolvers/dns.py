@@ -270,10 +270,10 @@ class DNS:
         data, sig, from_primary = self._resolve(domain, record_type, primary_ns)
         if data is None:
             return None, None, False, DNS.NO_RRSIG
-        if sig is None:
-            return data, sig, from_primary, DNS.NO_RRSIG
         if dnskey is None or len(dnskey) == 0:
             return data, sig, from_primary, DNS.NO_DNS_KEY
+        if sig is None:
+            return data, sig, from_primary, DNS.NO_RRSIG
         if self._validate_signature(domain, dnskey, data, sig):
             return data, sig, from_primary, DNS.VALID_SELF_SIG
         else:
