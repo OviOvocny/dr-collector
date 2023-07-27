@@ -40,6 +40,8 @@ class DNS:
     # query domain for all record types in record_types
     @timing.time_exec
     def query(self, domain_name: str, types: Optional[Tuple[str]] = None) -> Tuple[DNSData, Set[IPFromDNS]]:
+        logger.info(f"Resolving DNS for {domain_name}")
+
         domain = dns.name.from_text(domain_name)
         if types is None:
             types = Config.DNS_RECORD_TYPES
@@ -73,7 +75,7 @@ class DNS:
             ret['remarks']['zone_dnskey_selfsign_ok'] = self._validate_signature(authority_dn, dnskey_rrset,
                                                                                  dnskey_rrset, key_sig_rrset)
         except (dns.resolver.NoNameservers, dns.resolver.LifetimeTimeout):
-            logger.info(f"No nameservers could resolve DNSKEY for {domain_name}")
+            logger.debug(f"No nameservers could resolve DNSKEY for {domain_name}")
         except BaseException as err:
             logger.warning(f"Domain {domain_name} DNSKEY resolution error: {str(err)}")
 
@@ -386,7 +388,7 @@ class DNS:
                     for record in rrset:
                         ret.append(IPRecord(ttl=rrset.ttl, value=record.address))
         except Exception as err:
-            logger.info(f"Cannot find IPv4 data for {domain}: {str(err)}")
+            logger.debug(f"Cannot find IPv4 data for {domain}: {str(err)}")
 
         try:
             aaaa = self._dns.resolve(domain, 'AAAA')
@@ -395,7 +397,7 @@ class DNS:
                     for record in rrset:
                         ret.append(IPRecord(ttl=rrset.ttl, value=record.address))
         except Exception as err:
-            logger.info(f"Cannot find IPv6 data for {domain}: {str(err)}")
+            logger.debug(f"Cannot find IPv6 data for {domain}: {str(err)}")
 
         return ret
 
@@ -407,7 +409,7 @@ class DNS:
             dns.dnssec.validate(data, rrsig, {dnskey.name: dnskey})
             return True
         except dns.dnssec.ValidationFailure:
-            logger.info(f"DNSSEC validation error for {domain} / {data.rdtype}")
+            logger.debug(f"DNSSEC validation error for {domain} / {data.rdtype}")
             return False
 
     @staticmethod
