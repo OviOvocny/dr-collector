@@ -119,16 +119,16 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                         logger.error(f"RDAP resolver uncaught error for {ip_val}", exc_info=err)
 
                 # resolve alive status
-                # if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
-                #     logger.debug(f"Pinging {ip_val} (#{dom_num})")
-                #     try:
-                #         ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_val)
-                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
-                #     except ResolutionImpossible:
-                #         ip_data['remarks']['is_alive'] = False
-                #         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
-                #     except ResolutionNeedsRetry:
-                #         ip_data['remarks']['icmp_evaluated_on'] = None
+                if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
+                    logger.debug(f"Pinging {ip_val} (#{dom_num})")
+                    try:
+                        ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_val)
+                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                    except ResolutionImpossible:
+                        ip_data['remarks']['is_alive'] = False
+                        ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                    except ResolutionNeedsRetry:
+                        ip_data['remarks']['icmp_evaluated_on'] = None
 
                 # resolve ASN information
                 if retry_evaluated or 'asn_evaluated_on' not in ip_data['remarks'] or \
