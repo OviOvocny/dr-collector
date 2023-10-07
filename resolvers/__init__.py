@@ -1,4 +1,5 @@
 # import all resolvers
+import config
 import timing
 from .asn import ASN
 from .dns import DNS
@@ -14,7 +15,7 @@ from .rep.nerd import NERD
 
 # import other stuff for main resolver
 from exceptions import *
-from datatypes import DomainData, empty_ip_data, empty_domain_data
+from datatypes import DomainData, empty_ip_data, empty_domain_data, IPFromDNS
 from mongo import MongoWrapper
 from datetime import datetime
 from logger import logger
@@ -25,17 +26,18 @@ from loaders.utils import LoaderUtils as U
 
 
 @timing.time_exec
-def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic', retry_evaluated=False, dom_num=0):
+def resolve_domain(domain: DomainData, domain_index: int, mongo: MongoWrapper, mode: str = 'basic',
+                   retry_evaluated=False):
     """Resolve domain basic info and store results in db"""
     name = domain['domain_name']
-    logger.info(f"Resolving {name} (#{dom_num})")
+    logger.info(f"Resolving {name} (#{domain_index})")
     # set up resolvers
     rdap = RDAP()
 
     if mode == 'basic':
         # resolve DNS if needed
         if retry_evaluated or domain['remarks']['dns_evaluated_on'] is None:
-            logger.info(f"Resolving DNS for {name} (#{dom_num})")
+            logger.info(f"Resolving DNS for {name} (#{domain_index})")
             dns = DNS()
             try:
                 domain['remarks']['dns_evaluated_on'] = datetime.now()
@@ -45,7 +47,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                     if domain['ip_data'] is None:
                         domain['ip_data'] = []
                     for ip in ips:
-                        if not any(ip_data['ip'] == ip for ip_data in domain['ip_data']):
+                        if not any(ip_data['ip'] == ip.ip for ip_data in domain['ip_data']):
                             domain['ip_data'].append(empty_ip_data(ip))
             except ResolutionImpossible:
                 domain['dns'] = None
@@ -60,7 +62,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
 
         # resolve RDAP if needed
         if retry_evaluated or domain['remarks']['rdap_evaluated_on'] is None:
-            logger.info(f"Resolving RDAP for {name} (#{dom_num})")
+            logger.info(f"Resolving RDAP for {name} (#{domain_index})")
             try:
                 domain['remarks']['rdap_evaluated_on'] = datetime.now()
                 domain['rdap'] = rdap.domain(name)
@@ -75,7 +77,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
 
         # resolve TLS if needed
         if retry_evaluated or domain['remarks']['tls_evaluated_on'] is None:
-            logger.info(f"Resolving TLS for {name} (#{dom_num})")
+            logger.info(f"Resolving TLS for {name} (#{domain_index})")
             tls = TLS()
             try:
                 domain['remarks']['tls_evaluated_on'] = datetime.now()
@@ -96,7 +98,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
 
         # resolve IP RDAP and alive status if needed
         if domain['ip_data'] is not None:
-            logger.info(f"Resolving IP data for {name} (#{dom_num})")
+            logger.info(f"Resolving IP data for {name} (#{domain_index})")
             icmp = ICMP()
             asn = ASN()
 
@@ -104,7 +106,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                 ip_val = ip_data['ip']
                 # resolve RDAP
                 if retry_evaluated or ip_data['remarks']['rdap_evaluated_on'] is None:
-                    logger.debug(f"Resolving RDAP for {ip_val} (#{dom_num})")
+                    logger.debug(f"Resolving RDAP for {ip_val} (#{domain_index})")
                     try:
                         ip_data['rdap'] = rdap.ip(ip_val)
                         ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
@@ -120,7 +122,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
 
                 # resolve alive status
                 if retry_evaluated or ip_data['remarks']['icmp_evaluated_on'] is None:
-                    logger.debug(f"Pinging {ip_val} (#{dom_num})")
+                    logger.debug(f"Pinging {ip_val} (#{domain_index})")
                     try:
                         ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_val)
                         ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
@@ -133,7 +135,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
                 # resolve ASN information
                 if retry_evaluated or 'asn_evaluated_on' not in ip_data['remarks'] or \
                         ip_data['remarks']['asn_evaluated_on'] is None:
-                    logger.debug(f"Resolving ASN for {ip_val} (#{dom_num})")
+                    logger.debug(f"Resolving ASN for {ip_val} (#{domain_index})")
                     try:
                         ip_data['asn'] = asn.single(ip_val)
                         ip_data['remarks']['asn_evaluated_on'] = datetime.now()
@@ -151,7 +153,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             geo = GeoIP2()
             for ip_data in domain['ip_data']:
                 if retry_evaluated or ip_data['remarks']['geo_evaluated_on'] is None:
-                    logger.debug(f"Resolving GEO for {ip_data['ip']} (#{dom_num})")
+                    logger.debug(f"Resolving GEO for {ip_data['ip']} (#{domain_index})")
                     try:
                         ip_data['geo'] = geo.single(ip_data['ip'])
                         ip_data['remarks']['geo_evaluated_on'] = datetime.now()
@@ -166,7 +168,7 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             nerd = NERD(respect_bucket=True)  # respect bucket will not help in parallel mode!!
             for ip_data in domain['ip_data']:
                 if retry_evaluated or ip_data['remarks']['rep_evaluated_on'] is None:
-                    logger.debug(f"Resolving NERD for {ip_data['ip']} (#{dom_num})")
+                    logger.debug(f"Resolving NERD for {ip_data['ip']} (#{domain_index})")
                     if ip_data['rep'] is None:
                         ip_data['rep'] = {}
                     try:
@@ -183,11 +185,54 @@ def resolve_domain(domain: DomainData, mongo: MongoWrapper, mode: str = 'basic',
             scanner = PortScan()
             for ip_data in domain['ip_data']:
                 if retry_evaluated or ip_data['remarks']['ports_scanned_on'] is None:
-                    logger.debug(f"Scanning ports for {ip_data['ip']} (#{dom_num})")
+                    logger.debug(f"Scanning ports for {ip_data['ip']} (#{domain_index})")
                     ip_data['ports'] = scanner.scan(ip_data['ip'])  # TODO add option to specify ports
                     ip_data['remarks']['ports_scanned_on'] = datetime.now()
 
-    logger.info(f"Domain {name} (#{dom_num}) done")
+    logger.info(f"Domain {name} (#{domain_index}) done")
+    # store results
+    mongo.store(domain)
+
+
+def update_ips(domain: DomainData, domain_index: int, mongo: MongoWrapper):
+    dns_data = domain['dns']
+    if dns_data is None or domain['remarks']['dns_evaluated_on'] is None:
+        return
+
+    name = domain['domain_name']
+    logger.info(f"Checking {name} (#{domain_index})")
+
+    ips = []
+
+    for rec_type in config.Config.COLLECT_IPS_FROM:
+        if rec_type in dns_data and dns_data[rec_type] is not None:
+            rec = dns_data[rec_type]
+            if rec_type == 'A' or rec_type == 'AAAA':
+                ips.extend(IPFromDNS(x, rec_type) for x in rec)
+            elif rec_type == 'CNAME' and 'related_ips' in rec and rec['related_ips'] is not None:
+                ips.extend(IPFromDNS(x['value'], rec_type) for x in rec['related_ips'])
+            elif rec_type == 'MX' or rec_type == 'NS':
+                for v in rec.values():
+                    if 'related_ips' in v and v['related_ips'] is not None:
+                        ips.extend(IPFromDNS(x['value'], rec_type) for x in v['related_ips'])
+
+    if len(ips) == 0:
+        return
+
+    ip_data = (domain['ip_data'] if 'ip_data' in domain else []) or []
+    found_set = set()
+    for existing_ip in ip_data:
+        found_set.add(existing_ip['ip'])
+
+    written = 0
+    for ip in ips:
+        if ip.ip not in found_set:
+            ip_data.append(empty_ip_data(ip))
+            written += 1
+            found_set.add(ip.ip)
+
+    logger.info(f"[#{domain_index}] Wrote {written} IPs")
+    domain['ip_data'] = ip_data
     # store results
     mongo.store(domain)
 

@@ -14,7 +14,7 @@ from datatypes import empty_domain_data, DomainData
 from loaders import SourceLoader, DirectLoader, MISPLoader
 from logger import logger, logger_thread
 from mongo import MongoWrapper
-from resolvers import resolve_domain, try_domain
+from resolvers import resolve_domain, try_domain, update_ips
 from stats import get_stats, print_stats, write_stats, write_coords
 
 
@@ -123,7 +123,7 @@ def load_misp(feed, label):
 @click.option('--type', '-t', 'resolver_type', type=click.Choice(['basic', 'geo',
                                                                   'rep', 'ports']), help='Data to resolve',
               default='basic')
-@click.option('--label', '-l', type=str, help='Label for loaded domains', default='benign')
+@click.option('--label', '-l', type=str, help='Label (collection name) for loaded domains', default='benign')
 @click.option('--retry-evaluated', '-e', is_flag=True,
               help='Retry resolving fields that have failed before', default=False)
 @click.option('--force', '-f', is_flag=True,
@@ -185,56 +185,14 @@ def resolve(resolver_type, label, retry_evaluated, limit, sequential, yes, force
     # resolve domains
     if sequential:
         with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
+            i = 0
             for domain in unresolved:
-                resolve_domain(domain, mongo, resolver_type, retry_evaluated or force)
+                i += 1
+                resolve_domain(domain, i, mongo, resolver_type, retry_evaluated or force)
                 resolving.update(1)
         timing.dump()
     else:
-        with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
-                terminator_thread = threading.Thread(target=terminator, args=(executor, resolving, mongo))
-                terminator_thread.start()
-
-                futures = []
-                batch = 1
-                total_batches = count // Config.MONGO_READ_BATCH_SIZE
-                dom_num = 0
-                for domain in unresolved:
-                    dom_num += 1
-                    futures.append(executor.submit(resolve_domain, domain, mongo, resolver_type, retry_evaluated
-                                                   or force, dom_num))
-
-                    if len(futures) == Config.MONGO_READ_BATCH_SIZE:
-                        completed_count = 0
-                        logger.info(f"Batch {batch}/{total_batches} starting")
-                        try:
-                            for completed in concurrent.futures.as_completed(futures, timeout=Config.TIMEOUT_PER_BATCH):
-                                # check for errors
-                                try:
-                                    completed.result()
-                                except KeyboardInterrupt:
-                                    raise
-                                except BaseException as err:
-                                    logger_thread.exception(f'Exception in resolving thread in batch #{batch}',
-                                                            exc_info=err)
-                                # update progress bar
-                                resolving.update(1)
-                                completed_count += 1
-                        except KeyboardInterrupt:
-                            logger_thread.warning(f"Interrupted manually")
-                            mongo.flush()
-                            break
-                        except BaseException:  # for some reason, TimeoutError doesn't get caught here
-                            logger_thread.error(f"Batch #{batch} didn't complete in {Config.TIMEOUT_PER_BATCH} s")
-                            resolving.update(Config.MONGO_READ_BATCH_SIZE - completed_count)
-                            mongo.flush()
-
-                        futures.clear()
-                        batch += 1
-
-                timing.dump()
-                click.echo(f'\nWaiting for terminator... (max 10 seconds)')
-                terminator_thread.join(timeout=10)
+        run_parallel_resolving(unresolved, count, mongo, resolve_domain, resolver_type, retry_evaluated or force)
 
 
 def terminator(executor: concurrent.futures.ThreadPoolExecutor,
@@ -262,12 +220,81 @@ def terminator(executor: concurrent.futures.ThreadPoolExecutor,
                 last_pos = progress.pos
 
 
+@cli.command('fixup-ip-data', help='Ensures that related IP data are populated from all configured record types')
+@click.option('--label', '-l', type=str, help='Label (collection name) for loaded domains', default='benign')
+@click.option('--all', '-a', type=bool, help='Check all domains, not just those that miss IPs of types '
+                                             'present in DNS data', is_flag=True, default=True)
+@click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
+def fixup_ip_data(label: str, all: bool, limit: int):
+    mongo = MongoWrapper(label)
+    unresolved: pymongo.cursor.Cursor[DomainData]
+    unresolved, count = mongo.get_all_cursor(limit) if all else mongo.get_with_missing_ips(limit)
+
+    if count == 0:
+        click.echo("Nothing to fix")
+        return
+
+    click.echo(f"Found {count} domains")
+    run_parallel_resolving(unresolved, count, mongo, update_ips)
+
+
 @cli.command('try', help='Resolve domain and show results')
 @click.argument('domain', type=str)
 @click.option('--with-ports', '-p', is_flag=True, help='Scan ports', default=False)
 def dry_resolve(domain, with_ports):
     data = try_domain(domain, with_ports)
     click.echo(json.dumps(data, indent=2, default=str))
+
+
+def run_parallel_resolving(unresolved, count, mongo, exec_func, *args):
+    with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
+            terminator_thread = threading.Thread(target=terminator, args=(executor, resolving, mongo))
+            terminator_thread.start()
+
+            futures = []
+            batch = 1
+            total_batches = count // Config.MONGO_READ_BATCH_SIZE
+            dom_num = 0
+            total_done = 0
+
+            for domain in unresolved:
+                dom_num += 1
+                futures.append(executor.submit(exec_func, domain, dom_num, mongo, *args))
+
+                batch_size = min(Config.MONGO_READ_BATCH_SIZE, count - total_done)
+                if len(futures) == batch_size:
+                    completed_count = 0
+                    logger.info(f"Batch {batch}/{total_batches} starting")
+                    try:
+                        for completed in concurrent.futures.as_completed(futures, timeout=Config.TIMEOUT_PER_BATCH):
+                            # check for errors
+                            try:
+                                completed.result()
+                            except KeyboardInterrupt:
+                                raise
+                            except BaseException as err:
+                                logger_thread.exception(f'Exception in resolving thread in batch #{batch}',
+                                                        exc_info=err)
+                            # update progress bar
+                            resolving.update(1)
+                            completed_count += 1
+                            total_done += 1
+                    except KeyboardInterrupt:
+                        logger_thread.warning(f"Interrupted manually")
+                        mongo.flush()
+                        break
+                    except BaseException:  # for some reason, TimeoutError doesn't get caught here
+                        logger_thread.error(f"Batch #{batch} didn't complete in {Config.TIMEOUT_PER_BATCH} s")
+                        resolving.update(Config.MONGO_READ_BATCH_SIZE - completed_count)
+                        mongo.flush()
+
+                    futures.clear()
+                    batch += 1
+
+            timing.dump()
+            click.echo(f'\nWaiting for terminator... (max 10 seconds)')
+            terminator_thread.join(timeout=10)
 
 
 if __name__ == '__main__':

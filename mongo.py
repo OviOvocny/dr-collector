@@ -150,6 +150,24 @@ class MongoWrapper:
         count = db_count if limit == 0 else min(limit, db_count)
         return self._collection.find(query, limit=limit, batch_size=Config.MONGO_READ_BATCH_SIZE), count
 
+    def get_all_cursor(self, limit: int = 0):
+        return self._find_query({}, limit)
+
+    def get_with_missing_ips(self, limit: int = 0):
+        or_clauses = [
+            {
+                "$and": [
+                    {f"dns.{x}": {"$exists": True}},
+                    {"ip_data": {"$not": {"$elemMatch": {"from_record": x}}}}
+                ]
+            } for x in Config.COLLECT_IPS_FROM]
+
+        query = {
+            '$or': or_clauses
+        }
+
+        return self._find_query(query, limit)
+
     def get_unresolved(self, retry_evaluated=False, force=False, limit: int = 0):
         if force:
             query = {}
