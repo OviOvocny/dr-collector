@@ -5,6 +5,7 @@ __author__ = "Adam Horák, Ondřej Ondryáš"
 import re
 
 import dns.name
+import tldextract
 import whoisit
 from whoisit.errors import BootstrapError
 
@@ -47,22 +48,19 @@ class RDAP:
             except Exception as e:
                 logger.error(f'RDAP error for {current_domain}', exc_info=e)
 
-            err = ResolutionImpossible()
             try:
                 return self._query_whois(current_domain)
             except (ResolutionNeedsRetry, ResolutionImpossible) as e:
                 err = e
 
-            dn = dns.name.from_text(current_domain)
-            if len(dn) <= 3:
+            extracted = tldextract.extract(current_domain)
+            if len(extracted.subdomain) == 0:
                 raise err
 
-            more_general_name = dn.split(len(dn) - 1)[1]
-            to_try = more_general_name.to_text(True)
-
+            more_general_name = extracted.registered_domain
             logger.info(f"Trying more general name {more_general_name} for {original_domain}")
 
-            return worker(to_try)
+            return worker(more_general_name)
 
         return worker(domain)
 
@@ -75,25 +73,25 @@ class RDAP:
                 return whois_to_rdap_domain(w)
         except whois.exceptions.WhoisQuotaExceeded:
             logger.error(f'Whois quota exceeded (at {domain})')
-            raise ResolutionNeedsRetry
+            raise ResolutionNeedsRetry()
         except whois.exceptions.UnknownTld:
             logger.info(f'Unknown TLD for {domain}')
-            raise ResolutionImpossible
+            raise ResolutionImpossible()
         except whois.exceptions.WhoisPrivateRegistry:
             logger.warning(f'Whois private registry for {domain}')
-            raise ResolutionImpossible
+            raise ResolutionImpossible()
         except (whois.exceptions.WhoisCommandTimeout, whois.exceptions.WhoisCommandFailed):
             logger.warning(f'Whois timeout/fail for {domain}')
-            raise ResolutionNeedsRetry
+            raise ResolutionNeedsRetry()
         except whois.exceptions.FailedParsingWhoisOutput:
             logger.warning(f'Invalid whois output for {domain}')
-            raise ResolutionImpossible
+            raise ResolutionImpossible()
         except Exception as e:
             logger.error(f'Whois query for {domain} failed', exc_info=e)
-            raise ResolutionImpossible
+            raise ResolutionImpossible()
 
         logger.info(f'Whois empty for {domain}')
-        raise ResolutionNeedsRetry
+        raise ResolutionImpossible()
 
     @timing.time_exec
     def ip(self, ip: str, **kwargs) -> Optional[RDAPIPData]:
