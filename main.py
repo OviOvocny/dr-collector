@@ -225,7 +225,9 @@ def terminator(executor: concurrent.futures.ThreadPoolExecutor,
 @click.option('--all', '-a', type=bool, help='Check all domains, not just those that miss IPs of types '
                                              'present in DNS data', is_flag=True, default=True)
 @click.option('--limit', '-n', type=int, help='Limit number of domains to resolve', default=0)
-def fixup_ip_data(label: str, all: bool, limit: int):
+@click.option('--sequential', '-s', is_flag=True,
+              help='Resolve domains sequentially instead of in parallel', default=False)
+def fixup_ip_data(label: str, all: bool, limit: int, sequential: bool):
     mongo = MongoWrapper(label)
     unresolved: pymongo.cursor.Cursor[DomainData]
     unresolved, count = mongo.get_all_cursor(limit) if all else mongo.get_with_missing_ips(limit)
@@ -235,7 +237,16 @@ def fixup_ip_data(label: str, all: bool, limit: int):
         return
 
     click.echo(f"Found {count} domains")
-    run_parallel_resolving(unresolved, count, mongo, update_ips)
+
+    if sequential:
+        with click.progressbar(length=count, show_pos=True, show_percent=True) as resolving:
+            i = 0
+            for domain in unresolved:
+                i += 1
+                update_ips(domain, i, mongo)
+                resolving.update(1)
+    else:
+        run_parallel_resolving(unresolved, count, mongo, update_ips)
 
 
 @cli.command('try', help='Resolve domain and show results')
