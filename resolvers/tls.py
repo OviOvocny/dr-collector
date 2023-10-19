@@ -2,12 +2,12 @@
 import threading
 import time
 
-import timing
-from exceptions import *
-from datatypes import TLSData, Certificate, CertificateExtension
+import dr_collector.timing as timing
+from dr_collector.exceptions import *
+from dr_collector.datatypes import TLSData, Certificate, CertificateExtension
 from typing import List
-from logger import logger_resolvers as logger
-from config import Config
+from dr_collector.logger import logger_resolvers as logger
+from dr_collector.config import Config
 import datetime
 from OpenSSL.crypto import X509
 import OpenSSL.SSL
@@ -40,7 +40,10 @@ class TLS:
                 try:
                     sock.connect((host, port))
                     break
-                except OSError:
+                except OSError as x:
+                    if "already connected" in str(x):
+                        break
+
                     time.sleep(Config.TLS_TIMEOUT / Config.TLS_NONBLOCKING_RETRIES)
             else:
                 raise ResolutionImpossible

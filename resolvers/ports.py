@@ -4,8 +4,8 @@ __author__ = "Adam Horák"
 import socket
 from typing import List
 
-import timing
-from config import Config
+import dr_collector.timing as timing
+from dr_collector.config import Config
 
 
 class PortScan:

@@ -1,6 +1,9 @@
 # import all resolvers
-import config
-import timing
+import sys
+from typing import List, Optional
+
+import dr_collector.config
+import dr_collector.timing as timing
 from .asn import ASN
 from .dns import DNS
 from .rdap import RDAP
@@ -14,15 +17,109 @@ from .geo.universal_api import Geo as GeoAPI
 from .rep.nerd import NERD
 
 # import other stuff for main resolver
-from exceptions import *
-from datatypes import DomainData, empty_ip_data, empty_domain_data, IPFromDNS
-from mongo import MongoWrapper
+from dr_collector.exceptions import *
+from dr_collector.datatypes import DomainData, empty_ip_data, empty_domain_data, IPFromDNS
+from dr_collector.mongo import MongoWrapper
 from datetime import datetime
-from logger import logger
+from dr_collector.logger import logger
 
 # some stuff for dry run
 import re
-from loaders.utils import LoaderUtils as U
+from dr_collector.loaders.utils import LoaderUtils as U
+
+
+def resolve_single(domain_name: str) -> DomainData:
+    name = domain_name
+    rdap = RDAP()
+    dns = DNS()
+    tls = TLS()
+    asn = ASN()
+    icmp = ICMP()
+    geo = GeoIP2()
+
+    domain = empty_domain_data({
+        'name': domain_name,
+        'url': "",
+        'source': "cli",
+        'category': "unknown"
+    }, "cli")
+
+    domain['evaluated_on'] = datetime.now()
+
+    try:
+        print("Collecting DNS data", file=sys.stderr)
+        domain['remarks']['dns_evaluated_on'] = datetime.now()
+        domain['dns'], ips = dns.query(name)
+        domain['remarks']['dns_had_no_ips'] = ips is None or len(ips) == 0
+        dns.close_socket()
+
+        if ips is not None:
+            if domain['ip_data'] is None:
+                domain['ip_data'] = []
+
+            for ip in ips:
+                if any(ip_data['ip'] == ip.ip for ip_data in domain['ip_data']):
+                    continue
+
+                ip_data = empty_ip_data(ip)
+                ip_val = ip.ip
+
+                try:
+                    print(f"Collecting RDAP data for IP {ip_val}", file=sys.stderr)
+                    ip_data['rdap'] = rdap.ip(ip_val)
+                    ip_data['remarks']['rdap_evaluated_on'] = datetime.now()
+                except Exception as e:
+                    print(str(e), file=sys.stderr)
+
+                try:
+                    print(f"Collecting ICMP data for IP {ip_val}", file=sys.stderr)
+                    ip_data['remarks']['is_alive'], ip_data['remarks']['average_rtt'] = icmp.ping(ip_val)
+                    ip_data['remarks']['icmp_evaluated_on'] = datetime.now()
+                except Exception as e:
+                    print(str(e), file=sys.stderr)
+
+                try:
+                    print(f"Collecting ASN data for IP {ip_val}", file=sys.stderr)
+                    ip_data['asn'] = asn.single(ip_val)
+                    ip_data['remarks']['asn_evaluated_on'] = datetime.now()
+                except Exception as e:
+                    print(str(e), file=sys.stderr)
+
+                try:
+                    print(f"Collecting GeoIP data for IP {ip_val}", file=sys.stderr)
+                    ip_data['geo'] = geo.single(ip_val)
+                    ip_data['remarks']['geo_evaluated_on'] = datetime.now()
+                except Exception as e:
+                    print(str(e), file=sys.stderr)
+
+                try:
+                    nerd = NERD()
+                    print(f"Collecting NERD data for IP {ip_val}", file=sys.stderr)
+                    ip_data['rep']['nerd'] = nerd.resolve(ip_data['ip'])
+                    ip_data['remarks']['rep_evaluated_on'] = datetime.now()
+                except Exception as e:
+                    print(str(e), file=sys.stderr)
+
+                domain['ip_data'].append(ip_data)
+
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+
+    try:
+        print("Collecting RDAP data", file=sys.stderr)
+        domain['remarks']['rdap_evaluated_on'] = datetime.now()
+        domain['rdap'] = rdap.domain(name)
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+
+    try:
+        print("Collecting TLS data", file=sys.stderr)
+        domain['remarks']['tls_evaluated_on'] = datetime.now()
+        domain['tls'] = tls.resolve(name)
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+
+    return domain
 
 
 @timing.time_exec

@@ -6,10 +6,10 @@ from typing import Tuple, List, Dict
 from icmplib import ping, multiping
 from icmplib.exceptions import NameLookupError, SocketAddressError, SocketPermissionError
 
-import timing
-from logger import logger_resolvers as logger
-from config import Config
-from exceptions import *
+import dr_collector.timing as timing
+from dr_collector.logger import logger_resolvers as logger
+from dr_collector.config import Config
+from dr_collector.exceptions import *
 
 
 class ICMP:

@@ -6,9 +6,9 @@ __author__ = "Adam Horák"
 
 import re
 from typing import List
-from logger import logger
-from datatypes import Domain
-from loaders.utils import LoaderUtils as U
+from dr_collector.logger import logger
+from dr_collector.datatypes import Domain
+from dr_collector.loaders.utils import LoaderUtils as U
 
 
 class DirectLoader:

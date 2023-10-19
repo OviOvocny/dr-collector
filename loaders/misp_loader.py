@@ -4,13 +4,13 @@ MISP domain name loader - reads a MISP feed and loads domain names from it
 __author__ = "Jan Polišenský, Adam Horák"
 
 from typing import List
-from logger import logger
-from datatypes import Domain
-from config import Config
+from dr_collector.logger import logger
+from dr_collector.datatypes import Domain
+from dr_collector.config import Config
 from pymisp import ExpandedPyMISP  # type: ignore # linter is confused
 
 import re
-from loaders.utils import LoaderUtils as U
+from dr_collector.loaders.utils import LoaderUtils as U
 
 
 class MISPLoader:

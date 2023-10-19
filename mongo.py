@@ -10,9 +10,9 @@ import atexit
 import concurrent.futures
 from math import ceil
 from typing import List, Tuple
-from config import Config
-from datatypes import DomainData, GeoData
-from logger import logger
+from .config import Config
+from .datatypes import DomainData, GeoData
+from .logger import logger
 
 
 def chunks(source_list: List, n: int):

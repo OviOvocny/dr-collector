@@ -12,9 +12,9 @@ import urllib.request
 import zipfile
 from typing import List
 
-from datatypes import Domain, Source
-from loaders.utils import LoaderUtils as U, create_getter, create_mapper
-from logger import logger
+from dr_collector.datatypes import Domain, Source
+from dr_collector.loaders.utils import LoaderUtils as U, create_getter, create_mapper
+from dr_collector.logger import logger
 
 
 class SourceLoader:

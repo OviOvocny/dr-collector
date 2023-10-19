@@ -9,11 +9,11 @@ import tldextract
 import whoisit
 from whoisit.errors import BootstrapError
 
-from config import Config
-import timing
-from logger import logger_resolvers as logger
-from datatypes import RDAPDomainData, RDAPIPData, IPNetwork
-from exceptions import *
+from dr_collector.config import Config
+import dr_collector.timing as timing
+from dr_collector.logger import logger_resolvers as logger
+from dr_collector.datatypes import RDAPDomainData, RDAPIPData, IPNetwork
+from dr_collector.exceptions import *
 from typing import Optional
 import json
 

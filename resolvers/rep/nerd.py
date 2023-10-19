@@ -5,10 +5,10 @@ import time
 
 import requests
 
-import timing
-from config import Config
-from exceptions import *
-from logger import logger
+import dr_collector.timing as timing
+from dr_collector.config import Config
+from dr_collector.exceptions import *
+from dr_collector.logger import logger
 
 
 class NERD:

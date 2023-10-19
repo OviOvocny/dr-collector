@@ -1,14 +1,14 @@
 """ASN information resolver based on the GeoLite2 ASN database"""
 __author__ = "Ondřej Ondryáš"
 
-import timing
-from datatypes import ASNData
+import dr_collector.timing as timing
+from dr_collector.datatypes import ASNData
 from typing import List
 import geoip2.database
 import geoip2.models
 import geoip2.errors
 
-from exceptions import *
+from dr_collector.exceptions import *
 
 
 def default_mapper(data: geoip2.models.ASN) -> ASNData:

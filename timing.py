@@ -1,7 +1,7 @@
 from functools import wraps
 from threading import Semaphore
 
-from logger import logger
+from dr_collector.logger import logger
 import time
 
 _timings = {}

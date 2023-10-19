@@ -1,6 +1,6 @@
 import re
 from typing import Callable, List
-from datatypes import Source
+from dr_collector.datatypes import Source
 
 
 class LoaderUtils:

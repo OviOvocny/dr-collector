@@ -10,11 +10,11 @@ from dns.rdtypes.ANY.SOA import SOA
 from dns.name import Name
 from dns.rrset import RRset
 
-import timing
-from config import Config
-from datatypes import DNSData, IPRecord, SOARecord, CNAMERecord, MXRecord, NSRecord, IPFromDNS
-from exceptions import ResolutionImpossible
-from logger import logger_resolvers as logger
+import dr_collector.timing as timing
+from dr_collector.config import Config
+from dr_collector.datatypes import DNSData, IPRecord, SOARecord, CNAMERecord, MXRecord, NSRecord, IPFromDNS
+from dr_collector.exceptions import ResolutionImpossible
+from dr_collector.logger import logger_resolvers as logger
 
 
 # IDEA: add related_ips based on the primary NS address to SOA and to the resulting IP list, see what it does

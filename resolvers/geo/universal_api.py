@@ -2,11 +2,11 @@
 __author__ = "Adam Horák"
 # FYI: These APIs are heavily rate-limited or paid. RDAP can be used to get country data for IP addresses.
 
-from config import Config
-from datatypes import GeoData
-from exceptions import *
+from dr_collector.config import Config
+from dr_collector.datatypes import GeoData
+from dr_collector.exceptions import *
+from dr_collector.logger import logger_resolvers as logger
 from typing import Union, List, Tuple, Callable
-from logger import logger_resolvers as logger
 import requests
 import time
 
