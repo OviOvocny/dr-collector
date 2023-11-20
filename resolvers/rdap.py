@@ -170,16 +170,16 @@ def whois_to_rdap_domain(d: whois.Domain) -> RDAPDomainData:
         url='',
         entities={
             'registrant': [{
-                'name': definitely_string(d.registrant)
+                'name': definitely_string(d.registrant) if hasattr(d, 'registrant') else ''
             }],
             'abuse': [{
-                'email': definitely_string(d.abuse_contact)
+                'email': definitely_string(d.abuse_contact) if hasattr(d, 'abuse_contact') else ''
             }],
             'admin': [{
-                'name': definitely_string(d.admin)
+                'name': definitely_string(d.admin) if hasattr(d, 'admin') else ''
             }],
             'registrar': [{
-                'name': definitely_string(d.registrar)
+                'name': definitely_string(d.registrar) if hasattr(d, 'registrar') else ''
             }]
         },
         nameservers=[n.upper() for n in d.name_servers],
